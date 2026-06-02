@@ -3,13 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Works Audit Red Flag Detection System (Production Grade)</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <title>Works Audit Red Flag Detection System</title>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
@@ -18,13 +22,25 @@
 <body>
     <div id="root"></div>
 
+    <div id="error-fallback" class="hidden fixed inset-0 bg-red-900 text-white p-8 overflow-auto font-mono z-50">
+        <h1 class="text-2xl font-bold border-b border-red-700 pb-2 mb-4">🚨 Critical Production Runtime Crash Identified</h1>
+        <p class="mb-4 text-red-200">The application failed to execute. Review the runtime diagnostics log below:</p>
+        <pre id="error-log" class="bg-black/40 p-4 rounded-lg text-sm whitespace-pre-wrap"></pre>
+    </div>
+
+    <script>
+        window.addEventListener('error', function(e) {
+            document.getElementById('error-fallback').classList.remove('hidden');
+            document.getElementById('error-log').textContent += '\n[' + new Date().toISOString() + '] ' + e.message + ' at ' + e.filename + ':' + e.lineno;
+        });
+    </script>
+
     <script type="text/babel">
         const { useState, useMemo } = React;
 
-        // Baseline System Evaluation Date configured to context rules
         const BASELINE_SYSTEM_DATE = new Date("2026-06-02");
 
-        // Canonical 20 Red Flag Rules Directory from Reference Guide
+        // Canonical Master Rule Directory
         const MASTER_RULES_REF = {
             R01: { code: "DIVERSION_OF_FUND", title: "Diversion of fund across deposit works", severity: "CRITICAL", source: "BEAMS / AMS Cashbook" },
             R02: { code: "WASTEFUL_SURVEY", title: "Wasteful expenditure on Survey works", severity: "HIGH", source: "BEAMS Capital Works" },
@@ -48,7 +64,6 @@
             R20: { code: "SHORT_RECEIPT_DEPOSIT", title: "Short receipt of funds from user department", severity: "HIGH", source: "BEAMS Deposit UC" }
         };
 
-        // Complete Dictionary mapping canonical internal terms directly to your accepted alternative spreadsheet headers
         const COLUMN_ALIASES_MAP = {
             work_id: ['work id', 'id', 'work_id', 'deposit work id', 'work_no'],
             work_name: ['name of work', 'work name', 'work_name', 'audit criteria', 'description of work'],
@@ -59,8 +74,6 @@
             road_code: ['road code', 'road_code', 'road description', 'mrd code'],
             km_start: ['km start', 'km_start', 'start km', 'chainage from'],
             km_end: ['km end', 'km_end', 'end km', 'chainage to'],
-            
-            // Financial & Cost Attributes
             aa_amount: ['aa amount', 'administrative approval', 'aa', 'approved cost', 'aa value'],
             contract_cost: ['contract cost', 'contract_cost', 'agreement cost', 'agreement value', 'accepted tender amount'],
             tech_sanction_cost: ['ts cost', 'technical sanction cost', 'ts amount', 'sanction cost'],
@@ -70,8 +83,6 @@
             balance_amount: ['balance amount with ddo', 'unspent balance', 'balance', 'balance_amount'],
             cumulative_receipt_amount: ['cumulative receipt amount', 'total receipt', 'amount received', 'receipt amount', 'cumulative receipt', 'total receipts'],
             tender_premium_pct: ['tender premium pct', 'tender premium', 'premium', 'below above percentage', 'tender_premium'],
-
-            // Dates 
             ts_date: ['ts date', 'technical sanction date', 'date of ts', 'ts accorded on', 'date of technical sanction'],
             aa_date: ['aa date', 'administrative approval date', 'date of aa', 'aa accorded on', 'date of administrative approval'],
             receipt_date: ['receipt date', 'date of receipt', 'fund received date', 'deposit received date'],
@@ -79,30 +90,24 @@
             last_ra_bill_date: ['last ra bill date', 'last_ra_bill_date', 'ra bill payment date', 'bill date', 'ra_bill_date']
         };
 
-        // Robust, clean date converter capable of safely resolving string arrays or Excel serial numbers
         const parseAuditDate = (rawVal) => {
             if (!rawVal) return null;
-            if (rawVal instanceof Date) return rawVal;
-            
-            // Convert Excel timestamp serial numbers safely (e.g., 45362 -> Date Object)
+            if (rawVal instanceof Date) return isNaN(rawVal.getTime()) ? null : rawVal;
             if (!isNaN(rawVal) && Number(rawVal) > 30000 && Number(rawVal) < 60000) {
                 return new Date((Number(rawVal) - 25569) * 86400 * 1000);
             }
-            
             let cleanStr = String(rawVal).trim();
             let parts = cleanStr.split(/[-/]/);
             if (parts.length === 3) {
-                if (parts[0].length === 4) { // YYYY-MM-DD
+                if (parts[0].length === 4) {
                     return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
                 }
-                // DD-MM-YYYY
                 return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
             }
             let timestamp = Date.parse(cleanStr);
             return isNaN(timestamp) ? null : new Date(timestamp);
         };
 
-        // Built-in Demo Audit Logs containing test data structural profiles representing all 20 red flags
         const ENTERPRISE_DEMO_ROWS = [
             { "Deposit Work ID": "DEP-001", "Name of Work": "Construction of Sabhagruh at Darewadi", "Division": "PWD Nagpur-2", "AA Amount": 10000000, "Cumulative Receipt Amount": 5000000, "Fund Received Date": "15/03/2022", "RA Bill Amount": 2500000, "Centage Amount": 0, "Total Expenditure": 0, "Balance Amount with DDO": 5000000, "Parameters Required for Red Flag": "Electrical transfer drawing", "Major Head": "5054" },
             { "Work ID": "DEP-002", "Name of Work": "Water Supply Scheme Arvi", "Division": "PWD Arvi", "AA Amount": 6000000, "Total Receipts": 6000000, "Date of Receipt": "10/01/2024", "Bill Amount": 4000000, "Centage": 20000, "Cumulative Expenditure": 3800000, "Unspent Balance": 2200000, "Remarks": "Work Completed", "Major Head": "4701" },
@@ -121,7 +126,6 @@
             const [searchQuery, setSearchQuery] = useState("");
             const [selectedDivision, setSelectedDivision] = useState("ALL");
 
-            // Fuzzy Parser Engine that normalizes user headers to internal canonical targets
             const extractCanonicalRow = (rawRow, index) => {
                 let canonical = {};
                 const rawKeys = Object.keys(rawRow);
@@ -144,7 +148,6 @@
                     canonical[canonicalTarget] = foundValue;
                 });
 
-                // Post-mapping standardizations
                 return {
                     work_id: canonical.work_id || `ROW-REF-${index}`,
                     work_name: String(canonical.work_name || 'Unidentified Reference Work'),
@@ -165,8 +168,6 @@
                     cumulative_receipt_amount: parseFloat(canonical.cumulative_receipt_amount) || 0,
                     tender_premium_pct: parseFloat(canonical.tender_premium_pct) || 0,
                     is_deposit_work: !!canonical.cumulative_receipt_amount || String(canonical.work_id).includes('DEP'),
-                    
-                    // Direct parsed operational dates
                     ts_date: parseAuditDate(canonical.ts_date),
                     aa_date: parseAuditDate(canonical.aa_date),
                     receipt_date: parseAuditDate(canonical.receipt_date),
@@ -175,23 +176,19 @@
                 };
             };
 
-            // Comprehensive Analytical 20-Rule Processor
             const processedReport = useMemo(() => {
                 let itemizedIssues = [];
                 let normalizedRows = auditData.map((r, i) => extractCanonicalRow(r, i));
 
-                // Multi-Row relational maps
                 let roadMap = {};
                 let contractorCluster = {};
                 let divisionTenderStats = {};
 
-                // Pass 1: Local Single Row Rules and Data Collection
                 normalizedRows.forEach(row => {
                     let flags = [];
                     const rem = row.remark.toLowerCase();
                     const wName = row.work_name.toLowerCase();
 
-                    // Track segments for multi-row logic
                     if (row.road_code) {
                         if (!roadMap[row.road_code]) roadMap[row.road_code] = [];
                         roadMap[row.road_code].push(row);
@@ -214,90 +211,57 @@
                         }
                     }
 
-                    // R01: Diversion of fund across deposit works 
                     if (row.is_deposit_work && rem && !wName.includes(rem) && !rem.includes(wName)) {
-                        flags.push({ ...MASTER_RULES_REF.R01, id: 'R01', details: `Remark description "${row.remark}" diverges from official title: "${row.work_name}".` [cite: 1] });
+                        flags.push({ ...MASTER_RULES_REF.R01, id: 'R01', details: `Remark description "${row.remark}" diverges from official title: "${row.work_name}".` });
                     }
-
-                    // R02: Wasteful expenditure on Survey works 
                     if (rem.includes('survey') && row.bill_amount === 0 && row.cumulative_expenditure > 0) {
-                        flags.push({ ...MASTER_RULES_REF.R02, id: 'R02', details: `Survey operations logged active ledger expense but accompanied by a nil/zero updated RA bill value.` [cite: 1] });
+                        flags.push({ ...MASTER_RULES_REF.R02, id: 'R02', details: `Survey operations logged active ledger expense but accompanied by a nil/zero updated RA bill value.` });
                     }
-
-                    // R03: Excess expenditure without Govt approval 
                     if (row.aa_amount > 0 && row.cumulative_expenditure > (1.10 * row.aa_amount)) {
-                        flags.push({ ...MASTER_RULES_REF.R03, id: 'R03', details: `Cumulative financial output (₹${row.cumulative_expenditure.toLocaleString()}) exceeds the 110% ceiling limit of approved AA amount (₹${row.aa_amount.toLocaleString()}).` [cite: 1] });
+                        flags.push({ ...MASTER_RULES_REF.R03, id: 'R03', details: `Cumulative financial output (₹${row.cumulative_expenditure.toLocaleString()}) exceeds the 110% ceiling limit of approved AA amount (₹${row.aa_amount.toLocaleString()}).` });
                     }
-
-                    // R05: Delay in completion of work 
                     if (row.stipulated_completion_date && row.stipulated_completion_date < BASELINE_SYSTEM_DATE && !rem.includes('completed')) {
-                        flags.push({ ...MASTER_RULES_REF.R05, id: 'R05', details: `Project timeframe expired past stipulated completion limit (${row.stipulated_completion_date.toLocaleDateString()}) while work remains uncompleted.` [cite: 1] });
+                        flags.push({ ...MASTER_RULES_REF.R05, id: 'R05', details: `Project timeframe expired past stipulated completion limit (${row.stipulated_completion_date.toLocaleDateString()}) while work remains uncompleted.` });
                     }
-
-                    // R07: Non-recovery of centage charges 
                     if (row.is_deposit_work && row.percentage_amount === 0 && row.bill_amount > 0) {
-                        flags.push({ ...MASTER_RULES_REF.R07, id: 'R07', details: `Active draw of bill assets (₹${row.bill_amount.toLocaleString()}) processed with zero centage recoveries.` [cite: 1] });
+                        flags.push({ ...MASTER_RULES_REF.R07, id: 'R07', details: `Active draw of bill assets (₹${row.bill_amount.toLocaleString()}) processed with zero centage recoveries.` });
                     }
-
-                    // R08: Unspent balance not returned to user dept [cite: 1, 2]
                     if (row.is_deposit_work && row.balance_amount > 100000 && rem.includes('completed')) {
-                        flags.push({ ...MASTER_RULES_REF.R08, id: 'R08', details: `Work completed but unspent balance of ₹${row.balance_amount.toLocaleString()} remains stagnant (violates ₹1 Lakh threshold).` [cite: 1, 2] });
+                        flags.push({ ...MASTER_RULES_REF.R08, id: 'R08', details: `Work completed but unspent balance of ₹${row.balance_amount.toLocaleString()} remains stagnant (violates ₹1 Lakh threshold).` });
                     }
-
-                    // R09: Excess expenditure >25% of contract cost 
                     if (row.contract_cost > 0 && row.cumulative_expenditure > (1.25 * row.contract_cost)) {
-                        flags.push({ ...MASTER_RULES_REF.R09, id: 'R09', details: `Aggregate running book value metrics (₹${row.cumulative_expenditure.toLocaleString()}) show overrun exceeding 125% of contract value (₹${row.contract_cost.toLocaleString()}).` [cite: 1] });
+                        flags.push({ ...MASTER_RULES_REF.R09, id: 'R09', details: `Aggregate running book value metrics (₹${row.cumulative_expenditure.toLocaleString()}) show overrun exceeding 125% of contract value (₹${row.contract_cost.toLocaleString()}).` });
                     }
-
-                    // R10: Abandoned work (no progress >3 years) 
                     if (row.contract_cost > 0 && row.cumulative_expenditure < (0.75 * row.contract_cost) && row.last_ra_bill_date) {
                         let yearsStagnant = (BASELINE_SYSTEM_DATE - row.last_ra_bill_date) / (1000 * 60 * 60 * 24 * 365.25);
                         if (yearsStagnant > 3) {
-                            flags.push({ ...MASTER_RULES_REF.R10, id: 'R10', details: `Project structure at risk of abandonment; overall progress is below 75% baseline and zero transactional accounting updates have occurred for ${yearsStagnant.toFixed(1)} consecutive years.` [cite: 1] });
+                            flags.push({ ...MASTER_RULES_REF.R10, id: 'R10', details: `Project structure at risk of abandonment; overall progress is below 75% baseline and zero transactional accounting updates have occurred for ${yearsStagnant.toFixed(1)} consecutive years.` });
                         }
                     }
-
-                    // R12: Parking of fund (fag-end transfer) 
                     if (row.last_ra_bill_date && row.last_ra_bill_date.getMonth() === 2 && row.bill_amount > 5000000 && (rem.includes('transfer') || rem.includes('electrical') || rem.includes('fag end'))) {
-                        flags.push({ ...MASTER_RULES_REF.R12, id: 'R12', details: `High-value financial transfer allocation (₹${row.bill_amount.toLocaleString()}) processed at the tail-end of the financial calendar (March) to another division.` [cite: 1] });
+                        flags.push({ ...MASTER_RULES_REF.R12, id: 'R12', details: `High-value financial transfer allocation (₹${row.bill_amount.toLocaleString()}) processed at the tail-end of the financial calendar (March) to another division.` });
                     }
-
-                    // R13: Non-imposition of penalties for delayed work 
                     if (row.stipulated_completion_date && row.last_ra_bill_date && row.last_ra_bill_date > row.stipulated_completion_date) {
-                        flags.push({ ...MASTER_RULES_REF.R13, id: 'R13', details: `Bill date (${row.last_ra_bill_date.toLocaleDateString()}) is past the stipulated completion date (${row.stipulated_completion_date.toLocaleDateString()}) without verified extension/penalty data.` [cite: 1] });
+                        flags.push({ ...MASTER_RULES_REF.R13, id: 'R13', details: `Bill date (${row.last_ra_bill_date.toLocaleDateString()}) is past the stipulated completion date (${row.stipulated_completion_date.toLocaleDateString()}) without verified extension/penalty data.` });
+                        flags.push({ ...MASTER_RULES_REF.R14, id: 'R14', details: `Extended active execution running clear of original schedule limits with no verified renewal files for risk policies.` });
                     }
-
-                    // R14: Non-renewal of Insurance Policy / Bank Guarantee 
-                    if (row.stipulated_completion_date && row.last_ra_bill_date && row.last_ra_bill_date > row.stipulated_completion_date) {
-                        flags.push({ ...MASTER_RULES_REF.R14, id: 'R14', details: `Extended active execution running clear of original schedule limits with no verified renewal files for risk policies.` [cite: 1] });
-                    }
-
-                    // R16: Irregular payment on Hand Receipt 
                     if (row.bill_amount > 1000000 && (rem.includes('paid vide hr') || rem.includes('hand receipt') || rem.includes('hr '))) {
-                        flags.push({ ...MASTER_RULES_REF.R16, id: 'R16', details: `Substantial drawing of ₹${row.bill_amount.toLocaleString()} processed on a Hand Receipt instead of an authorized standardized voucher/bill matrix.` [cite: 1] });
+                        flags.push({ ...MASTER_RULES_REF.R16, id: 'R16', details: `Substantial drawing of ₹${row.bill_amount.toLocaleString()} processed on a Hand Receipt instead of an authorized standardized voucher/bill matrix.` });
                     }
-
-                    // R17: Irregular payment without proper classification [cite: 1, 3]
                     if (row.bill_amount > 1000000 && !row.major_head) {
-                        flags.push({ ...MASTER_RULES_REF.R17, id: 'R17', details: `High-value transaction drawing (₹${row.bill_amount.toLocaleString()}) posted inside cash register books without any active entry of a Major Head code.` [cite: 1, 3] });
+                        flags.push({ ...MASTER_RULES_REF.R17, id: 'R17', details: `High-value transaction drawing (₹${row.bill_amount.toLocaleString()}) posted inside cash register books without any active entry of a Major Head code.` });
                     }
-
-                    // R18: Technical Sanction prior to Administrative Approval 
                     if (row.ts_date && row.aa_date && row.ts_date < row.aa_date) {
-                        flags.push({ ...MASTER_RULES_REF.R18, id: 'R18', details: `Workflow structural integrity error: Technical Sanction verification date (${row.ts_date.toLocaleDateString()}) predates formal Administrative Approval allocation (${row.aa_date.toLocaleDateString()}).` [cite: 1] });
+                        flags.push({ ...MASTER_RULES_REF.R18, id: 'R18', details: `Workflow structural integrity error: Technical Sanction verification date (${row.ts_date.toLocaleDateString()}) predates formal Administrative Approval allocation (${row.aa_date.toLocaleDateString()}).` });
                     }
-
-                    // R19: Blocking of funds (deposit work, no expenditure) 
                     if (row.is_deposit_work && row.cumulative_expenditure === 0 && row.balance_amount > 0 && row.receipt_date) {
                         let fundAge = (BASELINE_SYSTEM_DATE - row.receipt_date) / (1000 * 60 * 60 * 24 * 365.25);
                         if (fundAge > 1) {
-                            flags.push({ ...MASTER_RULES_REF.R19, id: 'R19', details: `Resource blocking anomaly: Deposit funding profile received ${fundAge.toFixed(1)} years ago remains unspent with zero project operational outlays.` [cite: 1] });
+                            flags.push({ ...MASTER_RULES_REF.R19, id: 'R19', details: `Resource blocking anomaly: Deposit funding profile received ${fundAge.toFixed(1)} years ago remains unspent with zero project operational outlays.` });
                         }
                     }
-
-                    // R20: Short receipt of funds from user department 
                     if (row.is_deposit_work && row.aa_amount > 0 && row.cumulative_receipt_amount < row.aa_amount) {
-                        flags.push({ ...MASTER_RULES_REF.R20, id: 'R20', details: `Shortfall in prerequisite compliance deposit; aggregate receipts received (₹${row.cumulative_receipt_amount.toLocaleString()}) do not cover the full AA cost (₹${row.aa_amount.toLocaleString()}).` [cite: 1] });
+                        flags.push({ ...MASTER_RULES_REF.R20, id: 'R20', details: `Shortfall in prerequisite compliance deposit; aggregate receipts received (₹${row.cumulative_receipt_amount.toLocaleString()}) do not cover the full AA cost (₹${row.aa_amount.toLocaleString()}).` });
                     }
 
                     if (flags.length > 0) {
@@ -305,8 +269,6 @@
                     }
                 });
 
-                // Pass 2: Vector and Multi-Row Relational Calculations
-                // R04: Overlapping Works on Same Road Codes 
                 Object.keys(roadMap).forEach(road => {
                     let items = roadMap[road];
                     for (let i = 0; i < items.length; i++) {
@@ -319,7 +281,7 @@
                                     let match = itemizedIssues.find(x => x.work_id === target.work_id);
                                     if (!match) { match = { ...target, identifiedFlags: [] }; itemizedIssues.push(match); }
                                     if (!match.identifiedFlags.some(f => f.id === 'R04')) {
-                                        match.identifiedFlags.push({ ...MASTER_RULES_REF.R04, id: 'R04', details: `Spatial geometric conflict: Chainage metrics overlapping along road track code [${road}] with parallel project segments.` [cite: 1] });
+                                        match.identifiedFlags.push({ ...MASTER_RULES_REF.R04, id: 'R04', details: `Spatial geometric conflict: Chainage metrics overlapping along road track code [${road}] with parallel project segments.` });
                                     }
                                 });
                             }
@@ -327,7 +289,6 @@
                     }
                 });
 
-                // R06: Splitting of works to avoid competitive tendering procedures 
                 Object.keys(contractorCluster).forEach(key => {
                     let cluster = contractorCluster[key];
                     if (cluster.length > 1) {
@@ -337,14 +298,13 @@
                                 let match = itemizedIssues.find(x => x.work_id === item.work_id);
                                 if (!match) { match = { ...item, identifiedFlags: [] }; itemizedIssues.push(match); }
                                 if (!match.identifiedFlags.some(f => f.id === 'R06')) {
-                                    match.identifiedFlags.push({ ...MASTER_RULES_REF.R06, id: 'R06', details: `Artificial chunking risk: Multiple sub-₹10 Lakh execution agreements signed with contractor "${item.contractor}" across matching track assets during identical annual planning loop.` [cite: 1] });
+                                    match.identifiedFlags.push({ ...MASTER_RULES_REF.R06, id: 'R06', details: `Artificial chunking risk: Multiple sub-₹10 Lakh execution agreements signed with contractor "${item.contractor}" across matching track assets during identical annual planning loop.` });
                                 }
                             });
                         }
                     }
                 });
 
-                // R15: Splitting to bypass higher authorization boundaries 
                 Object.keys(roadMap).forEach(road => {
                     let items = roadMap[road];
                     for (let i = 0; i < items.length; i++) {
@@ -357,7 +317,7 @@
                                     let match = itemizedIssues.find(x => x.work_id === rItem.work_id);
                                     if (!match) { match = { ...rItem, identifiedFlags: [] }; itemizedIssues.push(match); }
                                     if (!match.identifiedFlags.some(f => f.id === 'R15')) {
-                                        match.identifiedFlags.push({ ...MASTER_RULES_REF.R15, id: 'R15', details: `Sanction threshold manipulation risk: Adjacency detected across technical segments exceeding the ₹1 Crore local threshold boundary on matching road corridors.` [cite: 1] });
+                                        match.identifiedFlags.push({ ...MASTER_RULES_REF.R15, id: 'R15', details: `Sanction threshold manipulation risk: Adjacency detected across technical segments exceeding the ₹1 Crore local threshold boundary on matching road corridors.` });
                                     }
                                 });
                             }
@@ -365,7 +325,6 @@
                     }
                 });
 
-                // R11: Inflated SSR/DSR (Count or Value Ratio Over 20%) 
                 Object.keys(divisionTenderStats).forEach(div => {
                     let stats = divisionTenderStats[div];
                     let countRatio = stats.totalCount > 0 ? (stats.lowBidCount / stats.totalCount) : 0;
@@ -377,7 +336,7 @@
                                 let match = itemizedIssues.find(x => x.work_id === row.work_id);
                                 if (!match) { match = { ...row, identifiedFlags: [] }; itemizedIssues.push(match); }
                                 if (!match.identifiedFlags.some(f => f.id === 'R11')) {
-                                    match.identifiedFlags.push({ ...MASTER_RULES_REF.R11, id: 'R11', details: `Systemic Rate Inflation Marker: Division profile presents over 20% of agreements accepted at deeply depressed pricing structures (below -10% limits).` [cite: 1] });
+                                    match.identifiedFlags.push({ ...MASTER_RULES_REF.R11, id: 'R11', details: `Systemic Rate Inflation Marker: Division profile presents over 20% of agreements accepted at deeply depressed pricing structures (below -10% limits).` });
                                 }
                             }
                         });
@@ -387,7 +346,6 @@
                 return itemizedIssues;
             }, [auditData]);
 
-            // Group divisions by risk matrix priorities
             const compiledDivisionsReport = useMemo(() => {
                 let reportMap = {};
                 
@@ -442,11 +400,15 @@
 
                 const reader = new FileReader();
                 reader.onload = (evt) => {
-                    const binaryStr = evt.target.result;
-                    const workbook = XLSX.read(binaryStr, { type: 'binary', cellDates: true });
-                    const sheetName = workbook.SheetNames[0];
-                    const rowsData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-                    if (rowsData.length > 0) setAuditData(rowsData);
+                    try {
+                        const binaryStr = evt.target.result;
+                        const workbook = XLSX.read(binaryStr, { type: 'binary', cellDates: true });
+                        const sheetName = workbook.SheetNames[0];
+                        const rowsData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+                        if (rowsData.length > 0) setAuditData(rowsData);
+                    } catch (err) {
+                        alert("Failed parsing Excel structural configurations: " + err.message);
+                    }
                 };
                 reader.readAsBinaryString(uploadedFile);
             };
@@ -457,27 +419,26 @@
                 let yOffset = 20;
 
                 pdf.setFont("Helvetica", "bold");
-                pdf.setFontSize(16);
+                pdf.setFontSize(14);
                 pdf.text("OFFICE OF THE ACCOUNTANT GENERAL (AUDIT-II), NAGPUR", 15, yOffset);
                 
                 yOffset += 8;
-                pdf.setFontSize(12);
+                pdf.setFontSize(11);
                 pdf.setFont("Helvetica", "normal");
                 pdf.text("Works Audit Red Flag Executive Dashboard Summary Report", 15, yOffset);
-                
-                yOffset += 10;
+                yOffset += 6;
                 pdf.line(15, yOffset, 195, yOffset);
                 yOffset += 10;
 
                 pdf.setFont("Helvetica", "bold");
                 pdf.text("Prioritized Division Vulnerability Rankings", 15, yOffset);
-                yOffset += 6;
+                yOffset += 8;
 
                 pdf.setFontSize(9);
                 pdf.text("Division Name", 15, yOffset);
-                pdf.text("Critical", 85, yOffset);
-                pdf.text("High", 110, yOffset);
-                pdf.text("Medium", 135, yOffset);
+                pdf.text("Critical", 90, yOffset);
+                pdf.text("High", 115, yOffset);
+                pdf.text("Medium", 140, yOffset);
                 pdf.text("Risk Score", 165, yOffset);
                 yOffset += 2;
                 pdf.line(15, yOffset, 195, yOffset);
@@ -487,9 +448,9 @@
                 compiledDivisionsReport.forEach(div => {
                     if (yOffset > 270) { pdf.addPage(); yOffset = 20; }
                     pdf.text(String(div.name), 15, yOffset);
-                    pdf.text(String(div.critical), 85, yOffset);
-                    pdf.text(String(div.high), 110, yOffset);
-                    pdf.text(String(div.medium), 135, yOffset);
+                    pdf.text(String(div.critical), 90, yOffset);
+                    pdf.text(String(div.high), 115, yOffset);
+                    pdf.text(String(div.medium), 140, yOffset);
                     pdf.setFont("Helvetica", "bold");
                     pdf.text(String(div.score), 165, yOffset);
                     pdf.setFont("Helvetica", "normal");
@@ -499,7 +460,6 @@
                 yOffset += 10;
                 if (yOffset > 250) { pdf.addPage(); yOffset = 20; }
                 pdf.setFont("Helvetica", "bold");
-                pdf.setFontSize(11);
                 pdf.text("Detailed Itemized Red Flag Disclosures", 15, yOffset);
                 yOffset += 8;
 
@@ -510,7 +470,7 @@
                     pdf.text(`Work ID: ${w.work_id} [${w.division}]`, 15, yOffset);
                     yOffset += 4;
                     pdf.setFont("Helvetica", "normal");
-                    pdf.text(`Name: ${w.work_name.substring(0, 90)}`, 15, yOffset);
+                    pdf.text(`Name: ${w.work_name.substring(0, 85)}`, 15, yOffset);
                     yOffset += 4;
 
                     w.identifiedFlags.forEach(f => {
@@ -519,7 +479,7 @@
                         pdf.text(`  -> [${f.id}] ${f.title} (${f.severity})`, 15, yOffset);
                         yOffset += 4;
                         pdf.setFont("Helvetica", "italic");
-                        let splitTxt = pdf.splitTextToSize(`Context: ${f.details}`, 175);
+                        let splitTxt = pdf.splitTextToSize(`Context: ${f.details}`, 170);
                         pdf.text(splitTxt, 18, yOffset);
                         yOffset += (splitTxt.length * 4) + 2;
                     });
@@ -555,21 +515,21 @@
                                 <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Critical Faults</span>
                                 <div className="flex items-baseline gap-2 mt-1">
                                     <span className="text-2xl font-bold text-rose-600">{summaryCounters.critical}</span>
-                                    <span className="text-[10px] text-rose-500 font-medium">(50w)</span>
+                                    <span className="text-[10px] text-rose-400 font-medium">Flags</span>
                                 </div>
                             </div>
                             <div className="bg-white border border-amber-100 rounded-xl p-4 shadow-sm">
                                 <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">High Risk</span>
                                 <div className="flex items-baseline gap-2 mt-1">
                                     <span className="text-2xl font-bold text-amber-500">{summaryCounters.high}</span>
-                                    <span className="text-[10px] text-amber-500 font-medium">(30w)</span>
+                                    <span className="text-[10px] text-amber-500 font-medium">Flags</span>
                                 </div>
                             </div>
                             <div className="bg-white border border-blue-100 rounded-xl p-4 shadow-sm">
                                 <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Medium Risk</span>
                                 <div className="flex items-baseline gap-2 mt-1">
                                     <span className="text-2xl font-bold text-blue-600">{summaryCounters.medium}</span>
-                                    <span className="text-[10px] text-blue-500 font-medium">(20w)</span>
+                                    <span className="text-[10px] text-blue-500 font-medium">Flags</span>
                                 </div>
                             </div>
                             <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
@@ -669,7 +629,10 @@
             );
         }
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        // Production-Grade React 18 Concurrent Root Mounting Strategy
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
     </script>
 </body>
 </html>
