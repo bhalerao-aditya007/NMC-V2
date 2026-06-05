@@ -1,1261 +1,1899 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Red Flag Detection System — All 20 Rules with Risk Categorization</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #ffffff 0%, #ffe5d9 100%); min-height: 100vh; padding: 20px; color: #333; }
-        .container { max-width: 1500px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); overflow: hidden; }
-        .header { background: #ff9a76; color: white; padding: 36px; text-align: center; }
-        .header h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
-        .header p { font-size: 15px; opacity: 0.95; }
-        .main-content { padding: 32px; }
-        .upload-section { background: #fff5f2; border: 2px dashed #ff9a76; border-radius: 12px; padding: 48px; text-align: center; margin-bottom: 28px; cursor: pointer; transition: all 0.3s; }
-        .upload-section:hover { background: #ffe5d9; border-color: #ff7a50; }
-        .upload-section.dragging { background: #ffe5d9; border-color: #ff7a50; transform: scale(1.01); }
-        .upload-label { font-size: 18px; font-weight: 600; color: #333; margin-bottom: 10px; display: block; }
-        .upload-hint { font-size: 14px; color: #666; }
-        input[type="file"] { display: none; }
-        .file-list { margin-top: 18px; }
-        .file-item { background: white; border: 1px solid #e8e8e8; border-radius: 8px; padding: 14px 18px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .file-name { font-size: 14px; color: #333; font-weight: 600; }
-        .file-type { font-size: 11px; color: #666; margin-left: 10px; padding: 3px 10px; background: #f0f0f0; border-radius: 4px; text-transform: uppercase; }
-        .remove-btn { background: #ff6b6b; color: white; border: none; border-radius: 5px; padding: 6px 14px; cursor: pointer; font-size: 12px; font-weight: 600; }
-        .remove-btn:hover { background: #e53935; }
-        .analyze-btn { background: #ff9a76; color: white; border: none; border-radius: 8px; padding: 18px; font-size: 18px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 20px; transition: background 0.2s; letter-spacing: 0.3px; }
-        .analyze-btn:hover:not(:disabled) { background: #ff7a50; }
-        .analyze-btn:disabled { background: #ccc; cursor: not-allowed; }
-        .processing { text-align: center; padding: 50px; }
-        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #ff9a76; border-radius: 50%; width: 56px; height: 56px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .results { margin-top: 10px; }
-        .summary { background: #fff8f5; border-left: 5px solid #ff9a76; padding: 24px; border-radius: 8px; margin-bottom: 24px; }
-        .summary-title { font-size: 22px; font-weight: 800; color: #222; margin-bottom: 16px; }
-        .summary-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
-        .stat-card { background: white; border-radius: 10px; padding: 18px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-top: 4px solid #e0e0e0; }
-        .stat-card.critical { border-top-color: #c62828; }
-        .stat-card.high { border-top-color: #e65100; }
-        .stat-card.medium { border-top-color: #f57f17; }
-        .stat-card.low { border-top-color: #2e7d32; }
-        .stat-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; font-weight: 600; }
-        .stat-value { font-size: 28px; font-weight: 800; color: #333; }
-        .flag-section { margin-bottom: 22px; }
-        .flag-header { background: #2c2c2c; color: white; padding: 14px 20px; border-radius: 8px 8px 0 0; font-size: 15px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
-        .flag-content { border: 1px solid #e8e8e8; border-top: none; border-radius: 0 0 8px 8px; padding: 18px; }
-        .flag-item { background: #fffbf8; border-left: 5px solid #ccc; padding: 16px; margin-bottom: 14px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-        .flag-item.severity-critical { border-left-color: #c62828; background: #fff5f5; }
-        .flag-item.severity-high { border-left-color: #e65100; background: #fff8f0; }
-        .flag-item.severity-medium { border-left-color: #f57f17; background: #fffde7; }
-        .flag-item.severity-low { border-left-color: #2e7d32; background: #e8f5e9; }
-        .flag-title { font-size: 15px; font-weight: 700; color: #222; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .flag-detail { font-size: 13.5px; color: #444; margin-bottom: 5px; line-height: 1.6; }
-        .flag-detail strong { color: #111; font-weight: 600; }
-        .no-flags { text-align: center; padding: 60px 20px; color: #555; font-size: 17px; }
-        .no-flags-icon { font-size: 52px; color: #4caf50; margin-bottom: 16px; }
-        .download-btn { background: #2c2c2c; color: white; border: none; border-radius: 8px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 18px; transition: background 0.2s; }
-        .download-btn:hover { background: #1a1a1a; }
-        .error { background: #ffebee; border: 1px solid #ffcdd2; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; color: #c62828; font-size: 14px; font-weight: 500; }
-        .search-filter-section { background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 22px; }
-        .search-bar { width: 100%; padding: 12px 16px; font-size: 14px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 14px; transition: border-color 0.2s; }
-        .search-bar:focus { outline: none; border-color: #ff9a76; }
-        .filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-        .filter-select { padding: 10px 12px; font-size: 13px; border: 2px solid #e0e0e0; border-radius: 8px; background: white; cursor: pointer; }
-        .filter-select:focus { outline: none; border-color: #ff9a76; }
-        .login-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #ffffff 0%, #ffe5d9 100%); padding: 20px; }
-        .login-card { background: white; border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.12); padding: 48px 40px; width: 100%; max-width: 420px; }
-        .login-title { text-align: center; font-size: 24px; font-weight: 800; color: #222; margin-bottom: 6px; }
-        .login-subtitle { text-align: center; font-size: 13px; color: #888; margin-bottom: 32px; }
-        .login-field { margin-bottom: 18px; }
-        .login-field label { display: block; font-size: 13px; font-weight: 700; color: #444; margin-bottom: 7px; }
-        .login-field input { width: 100%; padding: 12px 14px; font-size: 14px; border: 2px solid #e0e0e0; border-radius: 8px; outline: none; transition: border-color 0.2s; color: #222; }
-        .login-field input:focus { border-color: #ff9a76; }
-        .login-btn { width: 100%; padding: 14px; background: #ff9a76; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 6px; transition: background 0.2s; }
-        .login-btn:hover { background: #ff7a50; }
-        .login-error { background: #fff0f0; border: 1px solid #ffcccc; color: #cc3333; border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 18px; text-align: center; font-weight: 500; }
-        .severity-badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
-        .severity-badge.critical { background: #ffcdd2; color: #c62828; }
-        .severity-badge.high { background: #ffe0b2; color: #e65100; }
-        .severity-badge.medium { background: #fff9c4; color: #f57f17; }
-        .severity-badge.low { background: #c8e6c9; color: #2e7d32; }
-        .rule-ref { margin-bottom: 24px; overflow-x: auto; }
-        .rule-ref table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-        .rule-ref th { background: #2c2c2c; color: white; padding: 10px 12px; text-align: left; font-weight: 600; }
-        .rule-ref td { padding: 10px 12px; border-bottom: 1px solid #eee; }
-        .rule-ref tr:hover { background: #f9f9f9; }
-        .rule-sev { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 3px; display: inline-block; }
-        .rule-sev.high-risk { background: #ffcdd2; color: #c62828; }
-        .rule-sev.medium-risk { background: #ffe0b2; color: #e65100; }
-        .rule-sev.low-risk { background: #c8e6c9; color: #2e7d32; }
-        .risk-score-section { background: #fff3e0; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
-        .risk-score-title { font-size: 20px; font-weight: 800; color: #222; margin-bottom: 16px; }
-        .division-rank-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 12px; }
-        .division-rank-table th { background: #e65100; color: white; padding: 12px; text-align: left; font-weight: 700; }
-        .division-rank-table td { padding: 12px; border-bottom: 1px solid #eee; }
-        .division-rank-table tr:nth-child(even) { background: #fff8f0; }
-        .risk-bar-container { width: 100%; height: 20px; background: #e0e0e0; border-radius: 10px; overflow: hidden; }
-        .risk-bar { height: 100%; border-radius: 10px; transition: width 0.5s ease; }
-        .risk-bar.high { background: #c62828; }
-        .risk-bar.medium { background: #e65100; }
-        .risk-bar.low { background: #2e7d32; }
-        .chart-container { width: 100%; max-width: 600px; margin: 20px auto; }
-        .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #e0e0e0; }
-        .tab { padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; background: none; color: #666; border-bottom: 3px solid transparent; transition: all 0.2s; }
-        .tab.active { color: #ff9a76; border-bottom-color: #ff9a76; }
-        .tab:hover { color: #ff9a76; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        .report-section { background: #f5f5f5; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
-        .report-title { font-size: 18px; font-weight: 700; color: #222; margin-bottom: 12px; }
-        .report-subtitle { font-size: 13px; color: #666; margin-bottom: 16px; }
-    </style>
-<base target="_blank">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PWD Red Flag Detection System v3.2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --orange:#e8541a;--orange-light:#ff7a45;--orange-pale:#fff4ef;--orange-border:#ffd4c0;
+  --critical:#b71c1c;--critical-bg:#ffebee;--critical-border:#ef9a9a;
+  --high:#bf360c;--high-bg:#fbe9e7;--high-border:#ffab91;
+  --medium:#e65100;--medium-bg:#fff3e0;--medium-border:#ffcc80;
+  --low:#2e7d32;--low-bg:#e8f5e9;--low-border:#a5d6a7;
+  --dark:#1a1a2e;--surface:#fafafa;--card:#ffffff;--border:#e8e8e8;
+  --text:#1a1a1a;--text2:#555;--text3:#888;
+  --shadow:0 2px 12px rgba(0,0,0,.08);--shadow-lg:0 8px 32px rgba(0,0,0,.12);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--surface);color:var(--text);min-height:100vh}
+
+/* ── LOGIN ── */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fff8f5 0%,#ffe8dc 100%)}
+.login-card{background:#fff;border-radius:16px;box-shadow:var(--shadow-lg);padding:48px 40px;width:100%;max-width:400px}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo .emblem{font-size:40px;margin-bottom:8px}
+.login-logo h2{font-size:20px;font-weight:800;color:var(--dark)}
+.login-logo p{font-size:12px;color:var(--text3);margin-top:4px}
+.field{margin-bottom:18px}
+.field label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.field input{width:100%;padding:12px 14px;border:2px solid var(--border);border-radius:8px;font-size:14px;outline:none;transition:border-color .2s}
+.field input:focus{border-color:var(--orange)}
+.login-btn{width:100%;padding:14px;background:var(--orange);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s}
+.login-btn:hover{background:var(--orange-light)}
+.login-err{background:#ffebee;border:1px solid #ef9a9a;color:#c62828;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;text-align:center}
+
+/* ── LAYOUT ── */
+.app{display:none;flex-direction:column;min-height:100vh}
+.app.visible{display:flex}
+.topbar{background:var(--dark);color:#fff;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.topbar-brand{display:flex;align-items:center;gap:14px}
+.topbar-brand .icon{font-size:24px}
+.topbar-brand h1{font-size:17px;font-weight:800;line-height:1.2}
+.topbar-brand p{font-size:11px;color:#aaa;margin-top:1px}
+.topbar-actions{display:flex;gap:10px}
+.btn{padding:9px 18px;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--orange);color:#fff}
+.btn-primary:hover{background:var(--orange-light)}
+.btn-secondary{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2)}
+.btn-secondary:hover{background:rgba(255,255,255,.2)}
+.btn-dark{background:var(--dark);color:#fff}
+.btn-dark:hover{background:#2a2a4a}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.main{flex:1;display:flex;gap:0}
+.sidebar{width:260px;background:#fff;border-right:1px solid var(--border);padding:20px 16px;flex-shrink:0;overflow-y:auto}
+.content{flex:1;padding:24px;overflow-y:auto}
+
+/* ── SIDEBAR ── */
+.sidebar h3{font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding-left:4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:3px;font-size:13px;font-weight:600;color:var(--text2);transition:all .15s}
+.nav-item:hover{background:var(--orange-pale);color:var(--orange)}
+.nav-item.active{background:var(--orange-pale);color:var(--orange)}
+.nav-item .ni{font-size:16px;width:20px;text-align:center}
+.nav-badge{margin-left:auto;background:var(--orange);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:800}
+
+.sidebar-divider{height:1px;background:var(--border);margin:14px 0}
+
+/* ── UPLOAD ZONE ── */
+.upload-zone{border:2.5px dashed var(--orange-border);border-radius:12px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .25s;background:var(--orange-pale);margin-bottom:20px}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--orange);background:#ffe8dc;transform:scale(1.01)}
+.upload-icon{font-size:48px;margin-bottom:12px}
+.upload-zone h3{font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px}
+.upload-zone p{font-size:13px;color:var(--text3)}
+input[type=file]{display:none}
+
+/* ── FILE LIST ── */
+.file-item{background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.file-icon{font-size:24px;width:32px;text-align:center}
+.file-info{flex:1}
+.file-name{font-size:13px;font-weight:700;color:var(--text)}
+.file-meta{font-size:11px;color:var(--text3);margin-top:2px}
+.file-silo{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;text-transform:uppercase}
+.silo-capital{background:#e3f2fd;color:#1565c0}
+.silo-deposit{background:#f3e5f5;color:#6a1b9a}
+.silo-cash{background:#e8f5e9;color:#2e7d32}
+.silo-agreement{background:#fff8e1;color:#f57f17}
+.silo-uc{background:#fce4ec;color:#880e4f}
+.silo-unknown{background:#f5f5f5;color:#666}
+.remove-btn{padding:5px 12px;background:#ffebee;color:#c62828;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer}
+.remove-btn:hover{background:#ef9a9a;color:#fff}
+
+/* ── PROCESSING ── */
+.processing{text-align:center;padding:80px 20px}
+.spinner{width:56px;height:56px;border:4px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.processing h3{font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px}
+.processing p{font-size:14px;color:var(--text3)}
+.progress-steps{margin-top:28px;display:inline-block;text-align:left}
+.step{font-size:13px;color:var(--text3);padding:5px 0;display:flex;align-items:center;gap:8px}
+.step.done{color:var(--low)}
+.step.active{color:var(--orange);font-weight:700}
+
+/* ── SUMMARY CARDS ── */
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:24px}
+.card{background:#fff;border-radius:10px;padding:18px;box-shadow:var(--shadow);border-top:4px solid var(--border)}
+.card.c-critical{border-top-color:var(--critical)}
+.card.c-high{border-top-color:var(--high)}
+.card.c-medium{border-top-color:var(--medium)}
+.card.c-low{border-top-color:var(--low)}
+.card.c-total{border-top-color:var(--orange)}
+.card-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:6px}
+.card-value{font-size:30px;font-weight:900;color:var(--text)}
+.card.c-critical .card-value{color:var(--critical)}
+.card.c-high .card-value{color:var(--high)}
+.card.c-medium .card-value{color:var(--medium)}
+.card.c-low .card-value{color:var(--low)}
+.card.c-total .card-value{color:var(--orange)}
+.card-sub{font-size:11px;color:var(--text3);margin-top:4px}
+
+/* ── FILTERS ── */
+.filter-bar{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.search-input{flex:1;min-width:220px;padding:9px 14px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none;transition:border-color .2s}
+.search-input:focus{border-color:var(--orange)}
+.filter-sel{padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:#fff;cursor:pointer;outline:none}
+.filter-sel:focus{border-color:var(--orange)}
+.filter-count{font-size:12px;color:var(--text3);white-space:nowrap}
+
+/* ── FLAG SECTIONS ── */
+.rule-section{background:#fff;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden}
+.rule-header{background:var(--dark);color:#fff;padding:13px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.rule-header:hover{background:#2a2a4a}
+.rule-header-left{display:flex;align-items:center;gap:12px}
+.rule-id-badge{background:var(--orange);color:#fff;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:800}
+.rule-title-text{font-size:14px;font-weight:700}
+.rule-header-right{display:flex;align-items:center;gap:10px}
+.rule-count-badge{background:rgba(255,255,255,.18);color:#fff;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:800}
+.rule-toggle{font-size:18px;transition:transform .25s}
+.rule-toggle.open{transform:rotate(180deg)}
+.rule-body{display:none;padding:14px}
+.rule-body.open{display:block}
+
+.flag-card{border-radius:8px;padding:16px;margin-bottom:10px;border-left:5px solid var(--border)}
+.flag-card.sev-CRITICAL{background:var(--critical-bg);border-left-color:var(--critical)}
+.flag-card.sev-HIGH{background:var(--high-bg);border-left-color:var(--high)}
+.flag-card.sev-MEDIUM{background:var(--medium-bg);border-left-color:var(--medium)}
+.flag-card.sev-LOW{background:var(--low-bg);border-left-color:var(--low)}
+.flag-card:last-child{margin-bottom:0}
+
+.flag-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.flag-wname{font-size:14px;font-weight:700;color:var(--text);flex:1}
+.sev-badge{padding:3px 10px;border-radius:5px;font-size:10px;font-weight:800;text-transform:uppercase;white-space:nowrap}
+.sev-badge.CRITICAL{background:var(--critical-bg);color:var(--critical);border:1px solid var(--critical-border)}
+.sev-badge.HIGH{background:var(--high-bg);color:var(--high);border:1px solid var(--high-border)}
+.sev-badge.MEDIUM{background:var(--medium-bg);color:var(--medium);border:1px solid var(--medium-border)}
+.sev-badge.LOW{background:var(--low-bg);color:var(--low);border:1px solid var(--low-border)}
+
+.flag-rows{display:grid;gap:5px}
+.flag-row{display:flex;gap:8px;font-size:12.5px;line-height:1.5}
+.flag-row-label{font-weight:700;color:var(--text2);min-width:110px;flex-shrink:0}
+.flag-row-val{color:var(--text);word-break:break-word}
+.xv-status{margin-top:8px;font-size:11px;padding:4px 10px;border-radius:5px;display:inline-block}
+.xv-confirmed{background:#e8f5e9;color:#2e7d32;font-weight:700}
+.xv-missing{background:#fff3e0;color:#e65100}
+.xv-na{background:#f5f5f5;color:#888}
+
+/* ── DIVISION RANKING ── */
+.rank-table{width:100%;border-collapse:collapse;font-size:13px}
+.rank-table th{background:var(--dark);color:#fff;padding:11px 14px;text-align:left;font-weight:700;font-size:12px}
+.rank-table td{padding:11px 14px;border-bottom:1px solid var(--border)}
+.rank-table tr:last-child td{border-bottom:none}
+.rank-table tr:nth-child(even) td{background:#fafafa}
+.rank-table tr:hover td{background:var(--orange-pale)}
+.rank-num{font-weight:900;color:var(--orange)}
+.risk-bar-wrap{height:12px;background:#eee;border-radius:6px;overflow:hidden;width:140px}
+.risk-bar-fill{height:100%;border-radius:6px;transition:width .5s}
+.rb-high{background:var(--critical)}
+.rb-medium{background:var(--medium)}
+.rb-low{background:var(--low)}
+
+/* ── RULE REFERENCE TABLE ── */
+.ref-table{width:100%;border-collapse:collapse;font-size:12px}
+.ref-table th{background:#f5f5f5;padding:9px 12px;text-align:left;font-weight:700;border-bottom:2px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+.ref-table td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+.ref-table tr:last-child td{border-bottom:none}
+.ref-table tr:hover td{background:#fafafa}
+.risk-cat{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:800;text-transform:uppercase}
+.risk-cat.HIGH{background:#ffcdd2;color:#c62828}
+.risk-cat.MEDIUM{background:#ffe0b2;color:#e65100}
+.risk-cat.LOW{background:#c8e6c9;color:#2e7d32}
+
+/* ── SECTION TITLE ── */
+.section-title{font-size:18px;font-weight:800;color:var(--text);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--orange-border);display:flex;align-items:center;gap:10px}
+.section-title .icon{font-size:22px}
+
+/* ── PAGE ── */
+.page{display:none}
+.page.active{display:block}
+
+/* ── TABS ── */
+.tab-bar{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:20px}
+.tab{padding:10px 18px;border:none;background:none;font-size:13px;font-weight:700;color:var(--text3);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab:hover{color:var(--orange)}
+.tab.active{color:var(--orange);border-bottom-color:var(--orange)}
+
+/* ── MISC ── */
+.alert{padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:16px}
+.alert-warn{background:#fff3e0;border:1px solid #ffcc80;color:#e65100}
+.alert-info{background:#e3f2fd;border:1px solid #90caf9;color:#1565c0}
+.alert-success{background:#e8f5e9;border:1px solid #a5d6a7;color:#2e7d32}
+.empty-state{text-align:center;padding:80px 20px;color:var(--text3)}
+.empty-state .em-icon{font-size:56px;margin-bottom:16px}
+.empty-state h3{font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text2)}
+
+.action-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+.beams-avail{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:20px}
+.beams-avail h4{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px}
+.beams-grid{display:flex;gap:8px;flex-wrap:wrap}
+.beams-tag{padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700}
+.beams-ok{background:#e8f5e9;color:#2e7d32}
+.beams-miss{background:#ffebee;color:#c62828}
+
+@media(max-width:768px){
+  .sidebar{display:none}
+  .cards-grid{grid-template-columns:repeat(2,1fr)}
+  .filter-bar{flex-direction:column}
+}
+</style>
 </head>
 <body>
-    <div id="root"></div>
-    <script type="text/babel">
 
-        const { useState, useRef, useMemo } = React;
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+<!-- LOGIN -->
+<div id="loginPage">
+<div class="login-wrap">
+<div class="login-card">
+  <div class="login-logo">
+    <div class="emblem">⚖️</div>
+    <h2>PWD Red Flag Detection System</h2>
+    <p>Office of the Accountant General (Audit-II), Maharashtra</p>
+  </div>
+  <div id="loginErr" class="login-err" style="display:none"></div>
+  <div class="field"><label>Username</label><input id="uname" value="admin" autocomplete="username"></div>
+  <div class="field"><label>Password</label><input id="upass" type="password" value="admin" autocomplete="current-password"></div>
+  <button class="login-btn" onclick="doLogin()">Sign In →</button>
+</div>
+</div>
+</div>
 
-        // ==================== RULES CATALOG WITH RISK CATEGORIES ====================
-        const RULES = [
-            { id: 'R01', code: 'DIVERSION_OF_FUND', title: 'Diversion of fund across deposit works', riskCategory: 'HIGH', weight: 50, source: 'BEAMS / AMS Cashbook', param: 'Remark mismatch with work name' },
-            { id: 'R02', code: 'WASTEFUL_SURVEY', title: 'Wasteful expenditure on Survey works', riskCategory: 'HIGH', weight: 50, source: 'BEAMS Capital Works', param: 'Survey remark + nil RA bill for other items' },
-            { id: 'R03', code: 'EXCESS_WITHOUT_APPROVAL', title: 'Excess expenditure without Govt approval', riskCategory: 'HIGH', weight: 50, source: 'BEAMS UC', param: 'Expenditure > 110% of AA Amount' },
-            { id: 'R04', code: 'OVERLAPPING_MAINTENANCE', title: 'Overlapping works / avoidable DLP maintenance', riskCategory: 'HIGH', weight: 50, source: 'BEAMS + Agreement', param: 'Same road + overlapping km' },
-            { id: 'R05', code: 'DELAY_COMPLETION', title: 'Delay in completion of work', riskCategory: 'MEDIUM', weight: 30, source: 'BEAMS Capital Works', param: 'Stipulated completion < today' },
-            { id: 'R06', code: 'SPLITTING_OF_WORK', title: 'Splitting of work to avoid tender process', riskCategory: 'HIGH', weight: 50, source: 'Agreement Register', param: 'Same contractor + same road + same year + < Rs.10L each' },
-            { id: 'R07', code: 'NO_CENTAGE_RECOVERY', title: 'Non-recovery of centage charges', riskCategory: 'HIGH', weight: 50, source: 'BEAMS Deposit UC', param: 'Centage amount == 0 AND bill amount > 0' },
-            { id: 'R08', code: 'UNSPENT_BALANCE', title: 'Unspent balance not returned to user dept', riskCategory: 'HIGH', weight: 50, source: 'BEAMS Deposit UC', param: 'Balance > Rs.1L AND remark contains "Work Completed"' },
-            { id: 'R09', code: 'EXCESS_25_PERCENT', title: 'Excess expenditure >25% of contract cost', riskCategory: 'HIGH', weight: 50, source: 'BEAMS UC', param: 'Cumulative exp > 125% of contract cost' },
-            { id: 'R10', code: 'ABANDONED_WORK', title: 'Abandoned work (no progress >3 years)', riskCategory: 'HIGH', weight: 50, source: 'BEAMS UC', param: 'Exp < 75% contract + last RA > 3 yrs' },
-            { id: 'R11', code: 'INFLATED_SSR', title: 'Inflated SSR/DSR (excessive below-10% tenders)', riskCategory: 'HIGH', weight: 50, source: 'Agreement Register', param: '>20% works or cost below -10% tender' },
-            { id: 'R12', code: 'PARKING_OF_FUND', title: 'Parking of fund (fag-end transfer)', riskCategory: 'HIGH', weight: 50, source: 'BEAMS Capital UC', param: 'Amount > Rs.50L to another division in March' },
-            { id: 'R13', code: 'NO_DELAY_PENALTY', title: 'Non-imposition of penalties for delayed work', riskCategory: 'MEDIUM', weight: 30, source: 'BEAMS', param: 'RA bill date > stipulated completion date' },
-            { id: 'R14', code: 'INSURANCE_LAPSE', title: 'Non-renewal of Insurance Policy / Bank Guarantee', riskCategory: 'MEDIUM', weight: 30, source: 'BEAMS', param: 'RA bill date > stipulated completion date' },
-            { id: 'R15', code: 'SPLIT_HIGHER_SANCTION', title: 'Splitting to avoid higher-authority sanction', riskCategory: 'MEDIUM', weight: 30, source: 'BEAMS Capital Works', param: 'Adjacent km + same road + TS > Rs.1Cr each' },
-            { id: 'R16', code: 'HAND_RECEIPT_PAYMENT', title: 'Irregular payment on Hand Receipt', riskCategory: 'MEDIUM', weight: 30, source: 'AMS Cash Book Form 10', param: 'Amount > Rs.10L + "paid vide HR"' },
-            { id: 'R17', code: 'NO_CLASSIFICATION', title: 'Irregular payment without proper classification', riskCategory: 'LOW', weight: 20, source: 'AMS Cash Book Form 10', param: 'Amount > Rs.10L + empty Major Head column' },
-            { id: 'R18', code: 'TS_BEFORE_AA', title: 'Technical Sanction prior to Administrative Approval', riskCategory: 'LOW', weight: 20, source: 'BEAMS UC', param: 'TS Date < AA Date' },
-            { id: 'R19', code: 'BLOCKING_OF_FUNDS', title: 'Blocking of funds (deposit work, no expenditure)', riskCategory: 'MEDIUM', weight: 30, source: 'BEAMS Deposit UC', param: 'Cum exp == 0 AND balance > 0 AND receipt > 1 yr ago' },
-            { id: 'R20', code: 'SHORT_RECEIPT_DEPOSIT', title: 'Short receipt of funds from user department', riskCategory: 'MEDIUM', weight: 30, source: 'BEAMS Deposit UC', param: 'Cumulative receipt < AA amount' }
-        ];
+<!-- APP SHELL -->
+<div id="appShell" class="app">
 
-        const RISK_WEIGHTS = { HIGH: 50, MEDIUM: 30, LOW: 20 };
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-brand">
+      <span class="icon">🚩</span>
+      <div>
+        <h1>PWD Red Flag Detection System v3.2</h1>
+        <p>20 Audit Rules · Cross-Verification (XV) · BEAMS / AMS Data</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-secondary" onclick="showPage('upload')" id="navUpload">📁 Upload</button>
+      <button class="btn btn-secondary" onclick="showPage('results')" id="navResults" style="display:none">🚩 Results</button>
+      <button class="btn btn-secondary" onclick="doLogout()">🔐 Sign Out</button>
+    </div>
+  </div>
 
-        // ==================== HELPERS ====================
-        function formatDate(d) {
-            if (!d) return 'N/A';
-            if (typeof d === 'string') return d;
-            try { return d.toLocaleDateString('en-GB'); } catch(e) { return String(d); }
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <h3>Navigation</h3>
+      <div class="nav-item active" id="sideUpload" onclick="showPage('upload')"><span class="ni">📁</span>Upload Files</div>
+      <div class="nav-item" id="sideResults" onclick="showPage('results')"><span class="ni">🚩</span>Red Flags <span class="nav-badge" id="sideCount" style="display:none">0</span></div>
+      <div class="nav-item" id="sideDivision" onclick="showPage('division')"><span class="ni">📊</span>Division Ranking</div>
+      <div class="nav-item" id="sideRules" onclick="showPage('rules')"><span class="ni">📋</span>Rule Reference</div>
+      <div class="sidebar-divider"></div>
+      <h3>Data Loaded</h3>
+      <div id="siloStatus" style="font-size:12px;color:var(--text3);padding:4px">No files loaded yet</div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- UPLOAD PAGE -->
+      <div id="pageUpload" class="page active">
+        <div class="section-title"><span class="icon">📁</span>Upload BEAMS / AMS Documents</div>
+        <div class="alert alert-info">
+          Upload Capital Works, Deposit Works, Cash Book (Form 10), Agreement Register, and UC Register files.
+          Supports <strong>Excel (.xlsx/.xls)</strong>, <strong>PDF</strong>, and <strong>CSV</strong> formats.
+          Files are auto-classified into the correct BEAMS silo.
+        </div>
+        <div id="dropZone" class="upload-zone" onclick="document.getElementById('fileInput').click()" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+          <div class="upload-icon">📂</div>
+          <h3>Click to Browse or Drag &amp; Drop</h3>
+          <p>Capital Works · Deposit Works UCs · Agreement Register · Cash Book Form 10 · UC Register</p>
+          <p style="margin-top:8px;font-size:12px;color:#aaa">Excel, PDF, CSV accepted</p>
+        </div>
+        <input type="file" id="fileInput" multiple accept=".xlsx,.xls,.pdf,.csv" onchange="handleFileSelect(this.files)">
+        <div id="fileList"></div>
+        <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap">
+          <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()" disabled>🔍 Detect Red Flags</button>
+          <button class="btn btn-dark" onclick="clearAll()">🗑 Clear All</button>
+        </div>
+      </div>
+
+      <!-- PROCESSING PAGE -->
+      <div id="pageProcessing" class="page">
+        <div class="processing">
+          <div class="spinner"></div>
+          <h3>Analyzing Documents…</h3>
+          <p>Running all 20 audit rules with cross-verification</p>
+          <div class="progress-steps" id="progressSteps"></div>
+        </div>
+      </div>
+
+      <!-- RESULTS PAGE -->
+      <div id="pageResults" class="page">
+        <div class="section-title"><span class="icon">🚩</span>Red Flag Findings</div>
+
+        <!-- BEAMS Availability -->
+        <div class="beams-avail">
+          <h4>BEAMS Data Availability</h4>
+          <div class="beams-grid" id="beamsAvailDisplay"></div>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="cards-grid" id="summaryCards"></div>
+
+        <!-- Action bar -->
+        <div class="action-bar">
+          <button class="btn btn-primary" onclick="downloadCSV()">⬇ Download CSV</button>
+          <button class="btn btn-dark" onclick="downloadPDFReport()">📄 Download PDF Report</button>
+          <button class="btn btn-secondary" style="background:#333" onclick="showPage('division')">📊 Division Ranking</button>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-bar">
+          <input class="search-input" id="searchBox" placeholder="Search by work name, rule, description…" oninput="applyFilters()">
+          <select class="filter-sel" id="sevFilter" onchange="applyFilters()">
+            <option value="">All Severities</option>
+            <option value="CRITICAL">CRITICAL</option>
+            <option value="HIGH">HIGH</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="LOW">LOW</option>
+          </select>
+          <select class="filter-sel" id="ruleFilter" onchange="applyFilters()">
+            <option value="">All Rules</option>
+          </select>
+          <select class="filter-sel" id="divFilter" onchange="applyFilters()">
+            <option value="">All Divisions</option>
+          </select>
+          <span class="filter-count" id="filterCount"></span>
+        </div>
+
+        <!-- Flag list -->
+        <div id="flagList"></div>
+      </div>
+
+      <!-- DIVISION RANKING PAGE -->
+      <div id="pageDivision" class="page">
+        <div class="section-title"><span class="icon">📊</span>Division-wise Risk Ranking</div>
+        <div class="alert alert-info" style="margin-bottom:16px">
+          Weighted scoring: <strong>CRITICAL = 50 pts · HIGH = 40 pts · MEDIUM = 30 pts · LOW = 20 pts</strong>
+        </div>
+        <div id="divisionTable"></div>
+      </div>
+
+      <!-- RULES PAGE -->
+      <div id="pageRules" class="page">
+        <div class="section-title"><span class="icon">📋</span>Rule Reference — All 20 Audit Rules</div>
+        <div id="rulesTable"></div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// CONFIGURATION — mirrors cag_final.py THRESHOLDS + RISK_WEIGHTS
+// ═══════════════════════════════════════════════════════════════════════
+const THRESHOLDS = {
+  excess_10_percent:        1.10,
+  excess_25_percent:        1.25,
+  abandoned_utilization:    0.75,
+  abandoned_years:          3,
+  parking_amount:           5000000,    // Rs.50 Lakh
+  parking_month:            2,          // 0-based March
+  split_threshold:          150000000,  // Rs.15 Cr
+  split_adjacent_amount:    10000000,   // Rs.1 Cr
+  split_km_gap:             0.5,
+  inflated_ssr_percent:     0.20,
+  hand_receipt_amount:      1000000,    // Rs.10 Lakh
+  no_classification_amount: 1000000,
+  blocking_years:           1,
+  blocking_balance:         100000,     // Rs.1 Lakh
+  centage_rate:             0.05,
+  unspent_balance:          100000,
+  etender_threshold:        1000000,    // Rs.10 Lakh
+  insurance_min_contract:   5000000,    // Rs.50 Lakh
+  wasteful_survey_kw:       ['survey','surveying','reconnaissance'],
+  diversion_max_similarity: 0.6,
+};
+
+const RISK_WEIGHTS = { CRITICAL:50, HIGH:40, MEDIUM:30, LOW:20 };
+
+const RULES_CATALOG = [
+  { id:'R01', code:'DIVERSION_OF_FUND',        title:'Diversion of Fund Across Deposit Works',                       severity:'CRITICAL', source:'Deposit Works',          param:'Remark mismatch with work name / exp > receipts / negative balance' },
+  { id:'R02', code:'WASTEFUL_SURVEY',           title:'Wasteful Expenditure on Survey Works',                        severity:'HIGH',     source:'Capital Works',          param:'Survey keyword in name/remark + nil RA bill/exp' },
+  { id:'R03', code:'EXCESS_WITHOUT_APPROVAL',  title:'Excess Expenditure Without Govt Approval (>10% of AA)',       severity:'CRITICAL', source:'Capital Works',          param:'Cumulative exp > 110% of AA Amount' },
+  { id:'R04', code:'OVERLAPPING_MAINTENANCE',  title:'Overlapping Maintenance / Avoidable DLP Maintenance',         severity:'CRITICAL', source:'Capital + Agreement',    param:'Same road + overlapping chainage' },
+  { id:'R05', code:'DELAY_COMPLETION',          title:'Delay in Completion of Work',                                 severity:'MEDIUM',   source:'Capital Works',          param:'Stipulated completion < today, work incomplete' },
+  { id:'R06', code:'SPLITTING_ETENDER',         title:'Splitting of Work to Avoid E-Tender Process',                 severity:'CRITICAL', source:'Agreement Register',     param:'Same contractor + same year + each < Rs.10L' },
+  { id:'R07', code:'NO_CENTAGE_RECOVERY',       title:'Non-Recovery of Centage Charges',                             severity:'HIGH',     source:'Deposit Works',          param:'Bill amount > 0 AND centage amount == 0' },
+  { id:'R08', code:'UNSPENT_BALANCE',           title:'Unspent Balance Not Returned After Completion',               severity:'HIGH',     source:'Deposit Works',          param:'Balance > Rs.1L AND work marked completed' },
+  { id:'R09', code:'EXCESS_25_PERCENT',         title:'Excess Expenditure >25% of Contract Cost (Clause 38)',        severity:'CRITICAL', source:'Capital Works',          param:'Cumulative exp > 125% of contract cost' },
+  { id:'R10', code:'ABANDONED_WORK',            title:'Abandoned Work (No Progress >3 Years)',                       severity:'CRITICAL', source:'Capital Works',          param:'Exp < 75% contract + last activity > 3 yrs ago' },
+  { id:'R11', code:'INFLATED_SSR',              title:'Inflated SSR/DSR (Excessive Below-10% Tenders)',              severity:'HIGH',     source:'Agreement Register',     param:'>20% works/cost tendered >10% below estimate' },
+  { id:'R12', code:'PARKING_OF_FUND',           title:'Parking of Fund (Fag-end Transfer)',                          severity:'CRITICAL', source:'Capital Works',          param:'Amount > Rs.50L transferred in March' },
+  { id:'R13', code:'NO_DELAY_PENALTY',          title:'Non-Imposition of Penalties for Delayed Execution',           severity:'MEDIUM',   source:'Capital Works',          param:'RA bill date > stipulated completion date' },
+  { id:'R14', code:'INSURANCE_LAPSE',           title:'Lapse of Insurance Policy / Bank Guarantee',                  severity:'MEDIUM',   source:'Capital Works',          param:'High-value delayed work: BG/insurance must be renewed' },
+  { id:'R15', code:'SPLIT_HIGHER_SANCTION',     title:'Splitting to Avoid Higher-Authority Sanction',                severity:'MEDIUM',   source:'Capital Works',          param:'Adjacent km + same road + combined TS > Rs.15Cr' },
+  { id:'R16', code:'HAND_RECEIPT_PAYMENT',      title:'Irregular Payment via Hand Receipt',                           severity:'HIGH',     source:'Cash Book Form 10',      param:'Amount > Rs.10L + "paid vide HR" in narration' },
+  { id:'R17', code:'NO_CLASSIFICATION',         title:'Irregular Payment Without Proper Classification',             severity:'LOW',      source:'Cash Book Form 10',      param:'Amount > Rs.10L + empty Major Head / classification' },
+  { id:'R18', code:'TS_BEFORE_AA',              title:'Technical Sanction Prior to Administrative Approval',         severity:'LOW',      source:'Capital Works',          param:'TS Date < AA Date' },
+  { id:'R19', code:'BLOCKING_OF_FUNDS',         title:'Blocking of Funds (Deposit Work, No Expenditure)',            severity:'MEDIUM',   source:'Deposit Works',          param:'Cum exp == 0 AND balance > 0 AND receipt > 1 yr ago' },
+  { id:'R20', code:'SHORT_RECEIPT_DEPOSIT',     title:'Short Receipt of Funds from User Department',                 severity:'MEDIUM',   source:'Deposit Works',          param:'Cumulative receipt < AA amount' },
+];
+
+// ═══════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════
+const STATE = {
+  files: {},          // filename → File object
+  silos: { capital:[], deposit:[], cash:[], agreement:[], uc:[] },
+  flags: [],
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════════════════════
+function doLogin() {
+  const u = document.getElementById('uname').value.trim();
+  const p = document.getElementById('upass').value.trim();
+  if (u === 'admin' && p === 'admin') {
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('appShell').classList.add('visible');
+    renderRulesTable();
+  } else {
+    const el = document.getElementById('loginErr');
+    el.textContent = 'Invalid credentials. Default: admin / admin';
+    el.style.display = 'block';
+  }
+}
+function doLogout() {
+  document.getElementById('loginPage').style.display = '';
+  document.getElementById('appShell').classList.remove('visible');
+}
+document.getElementById('upass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+// ═══════════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════════════════
+function showPage(name) {
+  ['upload','processing','results','division','rules'].forEach(p => {
+    document.getElementById('page'+p.charAt(0).toUpperCase()+p.slice(1)).classList.remove('active');
+    const s = document.getElementById('side'+p.charAt(0).toUpperCase()+p.slice(1));
+    if(s) s.classList.remove('active');
+  });
+  document.getElementById('page'+name.charAt(0).toUpperCase()+name.slice(1)).classList.add('active');
+  const s = document.getElementById('side'+name.charAt(0).toUpperCase()+name.slice(1));
+  if(s) s.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HELPERS — mirror Python utility functions
+// ═══════════════════════════════════════════════════════════════════════
+function fmtAmt(v) {
+  if (v === null || v === undefined || isNaN(v)) return 'N/A';
+  return 'Rs.' + Number(v).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtDate(v) {
+  if (!v) return 'N/A';
+  if (v instanceof Date) return v.toLocaleDateString('en-GB');
+  return String(v);
+}
+function safeGet(obj, key, def='N/A') {
+  const v = obj[key];
+  if (v === null || v === undefined) return def;
+  if (typeof v === 'number' && isNaN(v)) return def;
+  return v;
+}
+
+// Parse Indian currency strings — mirrors _parse_indian_amount in validators.py
+function parseAmount(raw) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === 'boolean') return null;
+  if (typeof raw === 'number') return isFinite(raw) ? raw : null;
+  let s = String(raw).trim();
+  const nil = ['','−','-','.','nil','na','n/a','n.a','n.a.','pending','null','none','not available','not applicable','do','ditto','same','0.00','0'];
+  if (nil.includes(s.toLowerCase())) return null;
+  s = s.replace(/[\u20B9$£]|Rs\.?/g, '').trim();
+  let m;
+  // Crore
+  m = s.match(/(\d[\d,.]*)[\s]*(cr(?:ore)?s?|crores?)/i);
+  if (m) { const n=parseFloat(m[1].replace(/,/g,'')); if(!isNaN(n)) return Math.round(n*1e7*100)/100; }
+  // Lakh
+  m = s.match(/(\d[\d,.]*)[\s]*(lakh?s?|lac)/i);
+  if (m) { const n=parseFloat(m[1].replace(/,/g,'')); if(!isNaN(n)) return Math.round(n*1e5*100)/100; }
+  // Thousand
+  m = s.match(/(\d[\d,.]*)[\s]*(thousand|hazar)/i);
+  if (m) { const n=parseFloat(m[1].replace(/,/g,'')); if(!isNaN(n)) return Math.round(n*1e3*100)/100; }
+  // Plain
+  let clean = s.replace(/,/g,'').replace(/[^\d.\-]/g,'');
+  if (!clean || clean==='-' || clean==='.') return null;
+  const parts = clean.split('.');
+  if (parts.length > 2) clean = parts.slice(0,-1).join('') + '.' + parts[parts.length-1];
+  const val = parseFloat(clean);
+  return isFinite(val) ? val : null;
+}
+
+// Parse dates — mirrors DataNormalizer.parse_date
+function parseDate(v) {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if (typeof v === 'number') {
+    // Excel serial
+    if (v > 25000 && v < 60000) {
+      const d = new Date(Date.UTC(1900,0,1) + (v-2)*86400000);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+  }
+  const s = String(v).trim();
+  const fmts = [
+    /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/,
+    /^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/,
+    /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/,
+  ];
+  let d;
+  if (fmts[0].test(s)) { const p=s.match(fmts[0]); d=new Date(+p[3],+p[2]-1,+p[1]); }
+  else if (fmts[1].test(s)) { const p=s.match(fmts[1]); d=new Date(+p[1],+p[2]-1,+p[3]); }
+  else if (fmts[2].test(s)) { const p=s.match(fmts[2]); const yr=+p[3]; d=new Date(2000+yr,+p[2]-1,+p[1]); }
+  else { d=new Date(s); }
+  return (d && !isNaN(d.getTime())) ? d : null;
+}
+
+// Text similarity (Jaccard token) — mirrors _text_similarity
+function textSimilarity(a, b) {
+  if (!a || !b) return 0;
+  const stop = new Set(['the','of','and','or','in','at','to','for','on','from','by','a','an']);
+  const tok = s => new Set(s.toLowerCase().replace(/[^\w\s]/g,' ').split(/\s+/).filter(t=>t.length>1&&!stop.has(t)));
+  const sa=tok(a), sb=tok(b);
+  if (!sa.size || !sb.size) return 0;
+  let inter=0; sa.forEach(t=>{ if(sb.has(t)) inter++; });
+  return inter / (sa.size + sb.size - inter);
+}
+
+// Parse chainage — mirrors _parse_chainage
+function parseChainage(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  const s = String(v).replace(/[Kk][Mm]\.?\s*/g,'').trim();
+  const m = s.match(/^(\d+)\+(\d{1,3})$/);
+  if (m) return parseFloat(m[1]) + parseFloat(m[2])/1000;
+  const n = parseFloat(s.replace(/,/g,''));
+  return isFinite(n) ? n : null;
+}
+
+// Work-name token overlap — mirrors _wname_overlap
+function wnameOverlap(a, b) {
+  if (!a || !b) return 0;
+  const stop = new Set(['the','of','and','or','in','at','to','for','on','from','by','a','an','work','works']);
+  const tok = s => new Set(s.toLowerCase().replace(/[^\w\s]/g,' ').split(/\s+/).filter(t=>t.length>1&&!stop.has(t)));
+  const sa=tok(a), sb=tok(b);
+  if (!sa.size || !sb.size) return 0;
+  let inter=0; sa.forEach(t=>{ if(sb.has(t)) inter++; });
+  const union=sa.size+sb.size-inter;
+  return union>0 ? inter/union : 0;
+}
+
+// Stipulated completion date helper — mirrors _get_stipulated_completion_date
+function getStipulatedDate(row) {
+  if (row.stipulated_completion_date instanceof Date) return row.stipulated_completion_date;
+  const wo = row.work_order_date;
+  const tl = row.time_limit_months;
+  if (wo instanceof Date && tl && tl > 0) {
+    const d = new Date(wo);
+    d.setMonth(d.getMonth() + Math.round(tl));
+    return d;
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// COLUMN MAPPINGS — mirrors DataNormalizer.COLUMN_MAPPINGS
+// ═══════════════════════════════════════════════════════════════════════
+const COL_MAP = {
+  work_id:                    ['work_id','work id','workid','id','work code','budget item no','deposit id','uc no','uc number'],
+  work_name:                  ['work_name','work name','name of work','name of the work','description','particulars','narration','details'],
+  road_code:                  ['road_code','road code','road','road name','road number','sh','mdr','nh'],
+  km_start:                   ['km_start','km start','start km','chainage start','km from','from km','chainage from'],
+  km_end:                     ['km_end','km end','end km','chainage end','km to','to km','chainage to'],
+  aa_amount:                  ['aa_amount','aa amount','administrative approval','approved cost','aa','admin approval amount','administrative approval amount'],
+  aa_date:                    ['aa_date','aa date','administrative approval date','date of aa','aa accorded on','admin approval date'],
+  tech_sanction_cost:         ['tech_sanction_cost','technical sanction cost','tech sanction cost','ts cost','technical sanction','ts amount','amount of technical sanction'],
+  ts_date:                    ['ts_date','ts date','technical sanction date','date of ts','ts accorded on'],
+  contract_cost:              ['contract_cost','contract cost','agreement amount','contract amount','agreement value'],
+  cumulative_expenditure:     ['cumulative_expenditure','cumulative expenditure','total expenditure','expenditure','up-to-date expenditure','up to date expenditure','total exp','amount expended','amount utilised','utilised amount'],
+  work_order_date:            ['work_order_date','work order date','date of work order','wo date'],
+  time_limit_months:          ['time_limit_months','time limit','duration','original time limit','contract period','time limit months'],
+  stipulated_completion_date: ['stipulated_completion_date','stipulated completion date','completion date','expected completion','stipulated date of completion','date of completion','stipulated date'],
+  ra_bill_payment_date:       ['ra_bill_payment_date','ra bill payment date','last payment date','ra date','date of ra bill','payment date'],
+  last_ra_bill_date:          ['last_ra_bill_date','last ra bill date','last bill date','last ra date'],
+  bill_amount:                ['bill_amount','bill amount','ra bill amount','paid amount','amount paid','voucher amount','cheque amount','gross amount'],
+  remark:                     ['remark','remarks','status','notes','note','comments','progress'],
+  division:                   ['division','pwd division','pw division','division name','executive engineer','ee'],
+  cumulative_receipt_amount:  ['cumulative_receipt_amount','cumulative receipt amount','receipt amount','total receipt','amount received','cumulative receipt','total receipts','receipts','deposit received','total deposited'],
+  receipt_date:               ['receipt_date','receipt date','fund received date','deposit received date','date of receipt','first receipt date'],
+  centage_amount:             ['centage_amount','centage amount','centage','centage charges','department charges'],
+  balance_amount:             ['balance_amount','balance amount','unspent balance','balance','balance with ddo','balance amount with ddo','ddo balance','unspent amount'],
+  user_department:            ['user_department','user department','department','depositor','client department'],
+  voucher_no:                 ['voucher_no','voucher no','voucher number','voucher','vch no','bill no'],
+  voucher_date:               ['voucher_date','voucher date','vch date','transaction date','bill date'],
+  payment_amount:             ['payment_amount','payment amount','amount','paid amount','debit amount','withdrawal','cheque amount'],
+  receipt_amount:             ['receipt_amount','receipt amount','credit amount','deposit amount','inward amount'],
+  payee_name:                 ['payee_name','payee','payee name','party name','contractor','vendor','paid to','beneficiary'],
+  payment_mode:               ['payment_mode','payment mode','mode','mode of payment','payment type','type'],
+  classification:             ['classification','major head','head of account','budget head','head','head of accounts','hoa','account head','major head/minor head'],
+  narration:                  ['narration','description','particulars','details','transaction details','payment details'],
+  major_head:                 ['major_head','major head','head of account','hoa'],
+  minor_head:                 ['minor_head','minor head'],
+  tender_cost:                ['tender_cost','tender cost','tendered cost','tender amount','accepted tender cost','tendered amount'],
+  estimated_cost:             ['estimated_cost','estimated cost','estimate','ssr cost','estimated amount','sanctioned estimate'],
+  percentage_below:           ['percentage_below','percentage below','% below','percent below','below %','% above or below','above below','tender % below','tender below %'],
+  contractor_name:            ['contractor_name','contractor','contractor name','party','agency','firm name','bidder name'],
+  year:                       ['year','financial year','fy','fiscal year','agreement year'],
+  uc_date:                    ['uc_date','uc date','date of uc','uc issued on','certificate date'],
+  uc_amount:                  ['uc_amount','uc amount','amount as per uc','certified amount','amount certified'],
+  centage_pct:                ['centage_pct','centage percent','centage %','centage rate','department charges %'],
+  unspent_amount:             ['unspent_amount','unspent amount','unspent balance','balance amount'],
+};
+
+function normalizeColName(s) {
+  return String(s).toLowerCase().trim().replace(/[\-_]+/g,' ');
+}
+
+function mapColumns(rawRow) {
+  const keys = Object.keys(rawRow);
+  const out = {};
+  for (const [canonical, variants] of Object.entries(COL_MAP)) {
+    for (const col of keys) {
+      const cl = normalizeColName(col);
+      for (const v of variants) {
+        const vl = normalizeColName(v);
+        if (cl === vl || (vl.length > 9 && cl.includes(vl))) {
+          if (!(canonical in out)) out[canonical] = rawRow[col];
+          break;
         }
-        function normalizeAmount(v) {
-            if (typeof v === 'number') return v;
-            if (!v) return 0;
-            const s = String(v).replace(/[Rs.,\s]/g, '').replace(/[()]/g, '');
-            const n = parseFloat(s);
-            return isNaN(n) ? 0 : n;
-        }
-        function parseDate(v) {
-            if (!v) return null;
-            if (v instanceof Date) return v;
-            if (typeof v === 'number') {
-                if (v > 30000 && v < 50000) {
-                    const d = new Date((v - 25569) * 86400 * 1000);
-                    d.setMinutes(d.getMinutes() + d.getTimezoneOffset());
-                    return d;
-                }
-                return null;
-            }
-            const s = String(v).trim();
-            const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-            if (m1) return new Date(parseInt(m1[3]), parseInt(m1[2]) - 1, parseInt(m1[1]));
-            const m2 = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-            if (m2) return new Date(parseInt(m2[1]), parseInt(m2[2]) - 1, parseInt(m2[3]));
-            const m3 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
-            if (m3) { const y = parseInt(m3[3]); return new Date(2000 + y, parseInt(m3[2]) - 1, parseInt(m3[1])); }
-            return null;
-        }
-        function findCol(row, candidates) {
-            const keys = Object.keys(row);
-            for (let c of candidates) {
-                const re = new RegExp(c.replace(/\s+/g, '\\s*'), 'i');
-                const key = keys.find(k => re.test(k));
-                if (key !== undefined) return key;
-            }
-            return null;
-        }
-        function extractRoadDetails(name) {
-            if (!name) return { roadCode: null, kmStart: null, kmEnd: null };
-            const s = String(name);
-            const roadMatch = s.match(/(MDR|SH|NH|VR|ODR|MSH)-?\s*(\d+)/i);
-            const kmMatch = s.match(/[Kk][Mm][\s.]*(\d+[/\\.\d]+)\s*(?:to|To|TO|\-)[\s.]*(\d+[/\\.\d]+)/);
-            const kmMatch2 = s.match(/[Kk][Mm][\s.]*(\d+[/\\.\d]+)[\s.]*(?:to|To|TO|\-)[\s.]*(\d+[/\\.\d]+)/);
-            const km = kmMatch || kmMatch2;
-            return {
-                roadCode: roadMatch ? (roadMatch[1].toUpperCase() + roadMatch[2]) : null,
-                kmStart: km ? km[1].replace('\\', '/') : null,
-                kmEnd: km ? km[2].replace('\\', '/') : null
-            };
-        }
-        function kmToDecimal(km) {
-            if (!km) return null;
-            const parts = String(km).replace('\\', '/').split('/');
-            return parseFloat(parts[0]) + (parts[1] ? parseFloat(parts[1]) / 1000 : 0);
-        }
-        function kmOverlap(a1, a2, b1, b2) {
-            const a = kmToDecimal(a1), b = kmToDecimal(a2), c = kmToDecimal(b1), d = kmToDecimal(b2);
-            if (a === null || b === null || c === null || d === null) return false;
-            return a <= d && b >= c;
-        }
-        function parsePercentBelowAbove(v) {
-            if (!v) return null;
-            const s = String(v).toLowerCase();
-            const m = s.match(/(\d+(?:\.\d+)?)\s*%?\s*(below|above)/);
-            if (m) return { pct: parseFloat(m[1]), direction: m[2] };
-            if (s.includes('equal')) return { pct: 0, direction: 'equal' };
-            return null;
-        }
+      }
+      if (canonical in out) break;
+    }
+  }
+  // Keep original keys too for unmatched
+  for (const k of keys) out['_raw_'+k] = rawRow[k];
+  return out;
+}
 
-        // ==================== PARSERS ====================
-        async function readExcel(file) {
-            const ab = await file.arrayBuffer();
-            const wb = XLSX.read(ab);
-            const sheets = [];
-            for (let sn of wb.SheetNames) {
-                const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { raw: false, defval: '' });
-                sheets.push({ name: sn, rows });
-            }
-            return sheets;
+function normalizeRow(raw) {
+  const r = mapColumns(raw);
+  // Amounts
+  for (const f of ['aa_amount','tech_sanction_cost','contract_cost','cumulative_expenditure',
+    'bill_amount','cumulative_receipt_amount','centage_amount','balance_amount',
+    'payment_amount','receipt_amount','tender_cost','estimated_cost','uc_amount']) {
+    r[f] = parseAmount(r[f]);
+  }
+  // Dates
+  for (const f of ['aa_date','ts_date','work_order_date','stipulated_completion_date',
+    'ra_bill_payment_date','last_ra_bill_date','receipt_date','voucher_date','uc_date']) {
+    r[f] = parseDate(r[f]);
+  }
+  // Numerics
+  for (const f of ['km_start','km_end','time_limit_months','percentage_below','centage_pct']) {
+    if (r[f] !== null && r[f] !== undefined) {
+      const n = parseFloat(String(r[f]).replace(/,/g,'').replace(/%/g,''));
+      r[f] = isFinite(n) ? n : null;
+    }
+  }
+  // Strings
+  for (const f of ['work_id','work_name','road_code','remark','division','narration',
+    'payment_mode','classification','payee_name','voucher_no','contractor_name','user_department']) {
+    if (r[f] !== null && r[f] !== undefined) r[f] = String(r[f]).trim() || null;
+    else r[f] = null;
+  }
+  if (!r.division) r.division = 'Unknown Division';
+  if (!r.work_name) r.work_name = 'Unnamed Work';
+  if (!r.remark) r.remark = '';
+  return r;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SILO CLASSIFICATION — mirrors FolderPathClassifier + ContentClassifier
+// ═══════════════════════════════════════════════════════════════════════
+const SILO_PATH_RULES = [
+  { kws:['utilisation certificate','utilization certificate','util cert','uc register','form 13','form13','uc data','beams uc','u.c.','uc_reg','uc reg'], silo:'uc' },
+  { kws:['cash book','cashbook','form 10','form10','ams','cash-book','cash bk','register of payments','receipt and payment'], silo:'cash' },
+  { kws:['agreement','tender register','agreement register','agr reg','tender reg','work agreement','contractor register'], silo:'agreement' },
+  { kws:['deposit work','deposit works','depositwork','deposit-work','deposit wk','dep work','dep works','deposit account','user department work'], silo:'deposit' },
+  { kws:['capital work','capital works','capitalwork','capital-work','capital_work','cap work','road work','building work','construction work','electrical','civil work','maintenance work','widening','strengthening','resurfacing','renewal work','bridge work','culvert','original work','major work','minor work','pwd work','state highway','national highway','mdr work','work register','capital register','muster roll'], silo:'capital' },
+];
+
+const SILO_COL_INDICATORS = {
+  uc:        ['uc_amount','uc_date','unspent_amount','uc_no'],
+  capital:   ['aa_amount','contract_cost','tech_sanction_cost','road_code','work_order_date','stipulated_completion_date','ra_bill_payment_date','cumulative_expenditure'],
+  deposit:   ['cumulative_receipt_amount','balance_amount','user_department','centage_amount','receipt_date'],
+  cash:      ['voucher_no','payment_amount','payee_name','classification','payment_mode','major_head','minor_head'],
+  agreement: ['tender_cost','estimated_cost','percentage_below','contractor_name','centage_pct'],
+};
+
+function classifyBySiloCols(normalizedRows) {
+  if (!normalizedRows.length) return 'unknown';
+  const colsPresent = new Set(Object.keys(normalizedRows[0]).filter(k=>!k.startsWith('_raw_')));
+  const scores = {};
+  for (const [silo, cols] of Object.entries(SILO_COL_INDICATORS)) {
+    scores[silo] = cols.filter(c => colsPresent.has(c) && normalizedRows[0][c] !== undefined).length;
+  }
+  const best = Object.entries(scores).sort((a,b)=>b[1]-a[1])[0];
+  return best[1] >= 1 ? best[0] : 'unknown';
+}
+
+function classifyByFilename(name) {
+  const nl = name.toLowerCase().replace(/[\-_]/g,' ');
+  for (const rule of SILO_PATH_RULES) {
+    if (rule.kws.some(kw => nl.includes(kw))) return rule.silo;
+  }
+  return 'unknown';
+}
+
+// Content-based classification using column names (raw)
+function classifyByRawCols(rawCols) {
+  const colsStr = rawCols.map(c=>String(c).toLowerCase()).join(' ');
+  const scores = {
+    uc:        ['utilisation certificate','utilization certificate','uc no','uc amount','unspent amount','utilised amount','form 13'].filter(k=>colsStr.includes(k)).length,
+    capital:   ['administrative approval','technical sanction','work order','contract cost','ra bill','cumulative expenditure','stipulated','aa amount','ts cost'].filter(k=>colsStr.includes(k)).length,
+    deposit:   ['deposit work','user department','centage','balance with ddo','unspent balance','receipt amount','fund received','cumulative receipt'].filter(k=>colsStr.includes(k)).length,
+    cash:      ['voucher','major head','minor head','payee','payment mode','hand receipt','cheque','vch no','form 10'].filter(k=>colsStr.includes(k)).length,
+    agreement: ['percentage below','percentage above','tendered cost','estimated cost','ssr','contractor','tender','accepted tender','% below','% above'].filter(k=>colsStr.includes(k)).length,
+  };
+  const best = Object.entries(scores).sort((a,b)=>b[1]-a[1])[0];
+  return best[1] >= 1 ? best[0] : 'unknown';
+}
+
+function classifySheet(filename, sheetName, rawRows) {
+  const combined = (filename+' '+sheetName).toLowerCase();
+  // Tier 1: filename / sheet name
+  let silo = classifyByFilename(combined);
+  if (silo !== 'unknown') return silo;
+  // Tier 2: raw column names
+  if (rawRows.length) {
+    silo = classifyByRawCols(Object.keys(rawRows[0]));
+    if (silo !== 'unknown') return silo;
+  }
+  // Tier 3: normalised column presence
+  if (rawRows.length) {
+    const norm = rawRows.slice(0,5).map(normalizeRow);
+    silo = classifyBySiloCols(norm);
+    if (silo !== 'unknown') return silo;
+  }
+  return 'unknown';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FILE PARSERS
+// ═══════════════════════════════════════════════════════════════════════
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+async function parseExcel(file) {
+  const ab = await file.arrayBuffer();
+  const wb = XLSX.read(ab, { type:'array', cellDates:false, raw:false });
+  const results = [];
+  for (const sname of wb.SheetNames) {
+    const ws = wb.Sheets[sname];
+    let rows = XLSX.utils.sheet_to_json(ws, { raw:false, defval:'' });
+    if (!rows.length) {
+      // Try header detection for merged-cell titles
+      const raw = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' });
+      if (raw.length < 2) continue;
+      // Find best header row (first row with most non-empty text cells)
+      let bestHRow=0, bestScore=-1;
+      for (let i=0; i<Math.min(10,raw.length); i++) {
+        const cells = raw[i].filter(c=>c && String(c).trim());
+        const numericCount = cells.filter(c=>/^[\d,.\-]+$/.test(String(c).trim())).length;
+        if (numericCount > cells.length*0.7) continue;
+        const score = cells.length;
+        if (score > bestScore) { bestScore=score; bestHRow=i; }
+      }
+      if (bestScore < 2) continue;
+      const headers = raw[bestHRow].map((h,i)=>h && String(h).trim() ? String(h).trim() : `col_${i}`);
+      rows = raw.slice(bestHRow+1).map(r=>{
+        const obj={};
+        headers.forEach((h,i)=>{ obj[h]=r[i]||''; });
+        return obj;
+      }).filter(r=>Object.values(r).some(v=>v!==''));
+    }
+    if (rows.length) results.push({ sheetName:sname, rows });
+  }
+  return results;
+}
+
+async function parsePDF(file) {
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data:ab }).promise;
+  let fullText = '';
+  const tables = [];
+  for (let i=1; i<=pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    // Reconstruct lines from items using y-position
+    const items = tc.items.sort((a,b) => (b.transform[5]-a.transform[5]) || (a.transform[4]-b.transform[4]));
+    let lines = [];
+    let curY = null, curLine = [];
+    for (const item of items) {
+      const y = Math.round(item.transform[5]);
+      if (curY === null || Math.abs(y-curY) > 3) {
+        if (curLine.length) lines.push(curLine.map(it=>it.str).join(' '));
+        curLine = [item]; curY = y;
+      } else { curLine.push(item); }
+    }
+    if (curLine.length) lines.push(curLine.map(it=>it.str).join(' '));
+    fullText += lines.join('\n') + '\n';
+  }
+  // KV extraction for UC / Capital work PDFs
+  const rows = extractKVFromPDF(fullText, file.name);
+  return [{ sheetName:'PDF_Extracted', rows }];
+}
+
+function extractKVFromPDF(text, fname) {
+  // Mirrors FileParser._kv_extract patterns
+  const patterns = {
+    work_name:        /(?:Name of Work|Work Name|Particulars)[:\s]+([^\n]{5,200})/i,
+    work_id:          /(?:Work ID|Work Code|Work No|UC No)[:\s]+([\w\-\/]+)/i,
+    aa_amount:        /(?:Administrative Approval|AA Amount)[:\s]+(?:Rs\.?)?([0-9,\.]+)/i,
+    aa_date:          /(?:Date of AA|AA Date|Admin Approval Date)[:\s]+([0-9\/\-\.]{6,12})/i,
+    tech_sanction_cost:/(?:Technical Sanction|TS Cost|TS Amount)[:\s]+(?:Rs\.?)?([0-9,\.]+)/i,
+    ts_date:          /(?:Date of TS|TS Date)[:\s]+([0-9\/\-\.]{6,12})/i,
+    contract_cost:    /(?:Contract Cost|Agreement Amount|Agreement Value)[:\s]+(?:Rs\.?)?([0-9,\.]+)/i,
+    cumulative_expenditure:/(?:Cumulative Expenditure|Up.to.date Expenditure|Total Expenditure|Amount Utilised)[:\s]+(?:Rs\.?)?([0-9,\.]+)/i,
+    work_order_date:  /(?:Work Order Date|Date of Work Order|WO Date)[:\s]+([0-9\/\-\.]{6,12})/i,
+    stipulated_completion_date:/(?:Stipulated.*?Completion|Completion Date)[:\s]+([0-9\/\-\.]{6,12})/i,
+    remark:           /(?:Remark|Remarks|Status)[:\s]+([^\n]{1,300})/i,
+    balance_amount:   /(?:Balance.*?DDO|Unspent Balance|Balance Amount|Unspent Amount)[:\s]+(?:Rs\.?)?([0-9,\.]+)/i,
+    centage_amount:   /(?:Centage Amount|Centage Charges?)[:\s]+(?:Rs\.?)?([0-9,\.]+)/i,
+    cumulative_receipt_amount:/(?:Cumulative Receipt|Total Receipt|Amount Received)[:\s]+(?:Rs\.?)?([0-9,\.]+)/i,
+    uc_date:          /(?:UC Date|Date of UC|UC Issued)[:\s]+([0-9\/\-\.]{6,12})/i,
+    uc_amount:        /(?:UC Amount|Amount as per UC|Certified Amount)[:\s]+(?:Rs\.?)?([0-9,\.]+)/i,
+    receipt_date:     /(?:Receipt Date|Date of Receipt|Fund Received)[:\s]+([0-9\/\-\.]{6,12})/i,
+  };
+  const row = {};
+  for (const [field, pat] of Object.entries(patterns)) {
+    const m = text.match(pat);
+    if (m) row[field] = m[1].trim();
+  }
+  if (!Object.keys(row).length) {
+    // Try table-like extraction: split into lines and look for key:value pairs
+    const lines = text.split('\n');
+    for (const line of lines) {
+      for (const [field, pat] of Object.entries(patterns)) {
+        if (!row[field]) {
+          const m = line.match(pat);
+          if (m) row[field] = m[1].trim();
         }
-        async function readPDF(file) {
-            const ab = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
-            let text = '';
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const tc = await page.getTextContent();
-                text += tc.items.map(it => it.str).join(' ') + '\n';
-            }
-            return text;
+      }
+    }
+  }
+  return Object.keys(row).length ? [row] : [];
+}
+
+async function parseCSV(file) {
+  const text = await file.text();
+  const lines = text.split(/\r?\n/).filter(l=>l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h=>h.replace(/^"|"$/g,'').trim());
+  const rows = lines.slice(1).map(line => {
+    const vals = line.split(',').map(v=>v.replace(/^"|"$/g,'').trim());
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = vals[i]||'');
+    return obj;
+  }).filter(r=>Object.values(r).some(v=>v));
+  return [{ sheetName:'CSV', rows }];
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FILE MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════
+function handleDragOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('drag'); }
+function handleDragLeave() { document.getElementById('dropZone').classList.remove('drag'); }
+function handleDrop(e) { e.preventDefault(); document.getElementById('dropZone').classList.remove('drag'); handleFileSelect(e.dataTransfer.files); }
+function handleFileSelect(fl) {
+  for (const f of fl) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (['xlsx','xls','pdf','csv'].includes(ext)) {
+      STATE.files[f.name] = f;
+    }
+  }
+  renderFileList();
+}
+function removeFile(name) { delete STATE.files[name]; renderFileList(); }
+function clearAll() { STATE.files = {}; STATE.silos = { capital:[], deposit:[], cash:[], agreement:[], uc:[] }; STATE.flags = []; renderFileList(); }
+
+function getFileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  return { pdf:'📄', xlsx:'📊', xls:'📊', csv:'📋' }[ext] || '📎';
+}
+
+function renderFileList() {
+  const list = document.getElementById('fileList');
+  const btn = document.getElementById('analyzeBtn');
+  const names = Object.keys(STATE.files);
+  btn.disabled = names.length === 0;
+  if (!names.length) { list.innerHTML=''; return; }
+  list.innerHTML = names.map(name => `
+    <div class="file-item">
+      <span class="file-icon">${getFileIcon(name)}</span>
+      <div class="file-info">
+        <div class="file-name">${name}</div>
+        <div class="file-meta">${(STATE.files[name].size/1024).toFixed(1)} KB · ${name.split('.').pop().toUpperCase()}</div>
+      </div>
+      <button class="remove-btn" onclick="removeFile('${name.replace(/'/g,"\\'")}')">✕ Remove</button>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MAIN ANALYSIS ORCHESTRATION
+// ═══════════════════════════════════════════════════════════════════════
+async function runAnalysis() {
+  showPage('processing');
+  const steps = [
+    'Parsing uploaded files…',
+    'Classifying into BEAMS silos…',
+    'Normalizing columns & amounts…',
+    'Running R01–R05: Diversion, Survey, Excess, Overlap, Delay…',
+    'Running R06–R10: Splitting, Centage, Unspent, Excess25%, Abandoned…',
+    'Running R11–R15: SSR, Parking, Penalty, Insurance, Split Sanction…',
+    'Running R16–R20: Hand Receipt, Classification, TS/AA, Blocking, Short Receipt…',
+    'Building reports…',
+  ];
+  const stepsEl = document.getElementById('progressSteps');
+  function setStep(i) {
+    stepsEl.innerHTML = steps.map((s,j)=>`
+      <div class="step ${j<i?'done':j===i?'active':''}">
+        ${j<i?'✅':j===i?'⏳':'⬜'} ${s}
+      </div>`).join('');
+  }
+
+  STATE.silos = { capital:[], deposit:[], cash:[], agreement:[], uc:[] };
+
+  setStep(0);
+  await sleep(50);
+
+  // Parse all files
+  const allParsed = []; // { filename, sheetName, rawRows }
+  for (const [fname, file] of Object.entries(STATE.files)) {
+    const ext = fname.split('.').pop().toLowerCase();
+    try {
+      let parsed = [];
+      if (ext==='xlsx'||ext==='xls') parsed = await parseExcel(file);
+      else if (ext==='pdf') parsed = await parsePDF(file);
+      else if (ext==='csv') parsed = await parseCSV(file);
+      for (const p of parsed) {
+        if (p.rows.length) allParsed.push({ filename:fname, sheetName:p.sheetName, rawRows:p.rows });
+      }
+    } catch(e) { console.warn('Parse error', fname, e); }
+  }
+
+  setStep(1);
+  await sleep(50);
+
+  // Classify & normalize
+  for (const { filename, sheetName, rawRows } of allParsed) {
+    const silo = classifySheet(filename, sheetName, rawRows);
+    if (silo === 'unknown') { console.info('Unclassified:', filename, sheetName); continue; }
+    const normalized = rawRows.map(r => {
+      const row = normalizeRow(r);
+      row.source_file = filename;
+      row.source_sheet = sheetName;
+      if (!row.division || row.division === 'Unknown Division') {
+        row.division = extractDivisionFromFilename(filename);
+      }
+      return row;
+    });
+    STATE.silos[silo].push(...normalized);
+  }
+
+  setStep(2);
+  await sleep(50);
+
+  updateSiloStatus();
+  setStep(3); await sleep(50);
+
+  // Run all rules
+  STATE.flags = [];
+  const eng = new RulesEngine(STATE.silos);
+  setStep(3); await sleep(30); eng.runR01(); eng.runR02(); eng.runR03(); eng.runR04(); eng.runR05();
+  setStep(4); await sleep(30); eng.runR06(); eng.runR07(); eng.runR08(); eng.runR09(); eng.runR10();
+  setStep(5); await sleep(30); eng.runR11(); eng.runR12(); eng.runR13(); eng.runR14(); eng.runR15();
+  setStep(6); await sleep(30); eng.runR16(); eng.runR17(); eng.runR18(); eng.runR19(); eng.runR20();
+  setStep(7); await sleep(50);
+
+  STATE.flags = eng.flags;
+
+  // Render results
+  renderResultsPage();
+  renderDivisionPage();
+  renderRulesTable();
+
+  document.getElementById('sideCount').textContent = STATE.flags.length;
+  document.getElementById('sideCount').style.display = 'inline';
+  document.getElementById('navResults').style.display = 'inline-flex';
+
+  showPage('results');
+}
+
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+function extractDivisionFromFilename(fname) {
+  const m = fname.match(/\d{4}\s+(.+?)\s+(?:division|circle|ee|pwd)/i);
+  if (m) return m[1]+' Division';
+  const m2 = fname.match(/(?:division|circle|ee)\s+(.+?)(?:\s|\.)/i);
+  if (m2) return m2[1]+' Division';
+  return fname.replace(/\.\w+$/,'');
+}
+
+function updateSiloStatus() {
+  const el = document.getElementById('siloStatus');
+  const entries = [
+    ['capital','Capital Works','🏗'],
+    ['deposit','Deposit Works','🏦'],
+    ['cash','Cash Book','💰'],
+    ['agreement','Agreement Reg.','📝'],
+    ['uc','UC Register','📋'],
+  ];
+  el.innerHTML = entries.map(([silo,label,icon])=>{
+    const count = STATE.silos[silo].length;
+    const color = count>0 ? 'var(--low)' : 'var(--text3)';
+    return `<div style="padding:4px 0;display:flex;justify-content:space-between;align-items:center">
+      <span style="color:${color}">${icon} ${label}</span>
+      <span style="font-weight:700;color:${color}">${count}</span>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RULES ENGINE — full port of RedFlagRulesEngine from cag_final.py
+// ═══════════════════════════════════════════════════════════════════════
+class RulesEngine {
+  constructor(silos) {
+    this.capital   = silos.capital;
+    this.deposit   = silos.deposit;
+    this.cash      = silos.cash;
+    this.agreement = silos.agreement;
+    this.uc        = silos.uc;
+    this.flags     = [];
+  }
+
+  flag(rule, row, description, details={}, severity=null, beamsXV='XV:NOT-RUN') {
+    const r = RULES_CATALOG.find(x=>x.id===rule);
+    this.flags.push({
+      rule_id:   rule,
+      rule_code: r ? r.code : '',
+      title:     r ? r.title : '',
+      severity:  severity || (r ? r.severity : 'MEDIUM'),
+      division:  safeGet(row,'division','Unknown'),
+      work_id:   safeGet(row,'work_id','N/A'),
+      work_name: safeGet(row,'work_name','N/A'),
+      source_file: safeGet(row,'source_file','N/A'),
+      description,
+      details,
+      beams_xv: beamsXV,
+      raw: row,
+    });
+  }
+
+  // ── R01: DIVERSION OF FUND ──────────────────────────────────────────
+  runR01() {
+    if (!this.deposit.length) return;
+    const divKws = ['diversion','diverted','wrong head','transfer to','adjusted','debited to','credited to','other work'];
+    for (const row of this.deposit) {
+      const remark  = (row.remark || '').toLowerCase();
+      const wname   = row.work_name || '';
+      const cumExp  = row.cumulative_expenditure;
+      const balance = row.balance_amount;
+      const receipt = row.cumulative_receipt_amount;
+
+      if (remark && !['nil','na','n/a',''].includes(remark.trim())) {
+        const hasKw  = divKws.some(k=>remark.includes(k));
+        const sim    = textSimilarity(remark, wname);
+        const rToks  = new Set(remark.split(/\s+/).filter(t=>t.length>3));
+        const wToks  = new Set(wname.toLowerCase().split(/\s+/).filter(t=>t.length>3));
+        const isSubset = [...rToks].every(t=>wToks.has(t)) || [...wToks].every(t=>rToks.has(t));
+        if (!isSubset || hasKw) {
+          if (sim < THRESHOLDS.diversion_max_similarity || hasKw) {
+            if (!cumExp || cumExp <= 0) continue;
+            this.flag('R01', row,
+              `Remark "${remark.slice(0,100)}" does not match work "${wname.slice(0,80)}". Similarity ${(sim*100).toFixed(1)}%.`,
+              { similarity: sim.toFixed(3), has_diversion_keyword: hasKw });
+          }
         }
-        async function readDOCX(file) {
-            const ab = await file.arrayBuffer();
-            const res = await mammoth.extractRawText({ arrayBuffer: ab });
-            return res.value;
+        continue;
+      }
+      // Blank remark checks
+      if (cumExp && receipt && receipt > 0 && cumExp > receipt * 1.10) {
+        this.flag('R01', row,
+          `Expenditure ${fmtAmt(cumExp)} exceeds receipts ${fmtAmt(receipt)} by ${((cumExp-receipt)/receipt*100).toFixed(1)}% with blank remark.`,
+          { excess_over_receipt: (cumExp-receipt).toFixed(2) }, 'HIGH');
+      } else if (balance !== null && balance < -1000) {
+        this.flag('R01', row,
+          `Balance is negative (${fmtAmt(balance)}) with blank remark. Expenditure booked beyond receipts.`,
+          { negative_balance: balance.toFixed(2) }, 'HIGH');
+      }
+    }
+  }
+
+  // ── R02: WASTEFUL SURVEY ────────────────────────────────────────────
+  runR02() {
+    if (!this.capital.length) return;
+    for (const row of this.capital) {
+      const remark = (row.remark || '').toLowerCase();
+      const wname  = (row.work_name || '').toLowerCase();
+      const hasSurvey = THRESHOLDS.wasteful_survey_kw.some(k=>remark.includes(k)||wname.includes(k));
+      if (!hasSurvey) continue;
+      const billAmt = row.bill_amount;
+      const cumExp  = row.cumulative_expenditure;
+      const raDate  = row.ra_bill_payment_date;
+      const nilPay  = (!billAmt || billAmt===0) && !raDate && (!cumExp || cumExp===0);
+      if (nilPay) {
+        this.flag('R02', row,
+          `Survey work with no RA bill/payment. Cumulative Exp: ${fmtAmt(cumExp)}. Possible wasteful expenditure.`,
+          { remark: remark.slice(0,200) });
+      }
+    }
+  }
+
+  // ── R03: EXCESS WITHOUT APPROVAL (>10% AA) ──────────────────────────
+  runR03() {
+    if (!this.capital.length) return;
+    for (const row of this.capital) {
+      const cumExp = row.cumulative_expenditure;
+      const aa     = row.aa_amount;
+      if (!cumExp || !aa || aa<=0 || cumExp<=0) continue;
+      if (cumExp > aa * THRESHOLDS.excess_10_percent) {
+        const excess = cumExp - aa;
+        const pct = (excess/aa*100).toFixed(1);
+        this.flag('R03', row,
+          `Cumulative exp ${fmtAmt(cumExp)} exceeds AA ${fmtAmt(aa)} by ${pct}% (>10%).`,
+          { excess_amount: excess.toFixed(2), excess_pct: pct });
+      }
+    }
+  }
+
+  // ── R04: OVERLAPPING MAINTENANCE ───────────────────────────────────
+  runR04() {
+    const allWorks = [
+      ...this.capital.map(r=>({...r, _src:'capital'})),
+      ...this.agreement.map(r=>({...r, _src:'agreement'})),
+    ];
+    const maintKw = ['maintenance','repair','resurfacing','renewal','dlp','annual maintenance','periodic'];
+    const maintWorks = allWorks.filter(r => {
+      const wn = (r.work_name||'').toLowerCase();
+      return maintKw.some(k=>wn.includes(k));
+    });
+    // Group by road_code + division
+    const groups = {};
+    for (const w of maintWorks) {
+      const rc = (w.road_code||'').trim().toLowerCase();
+      if (!rc) continue;
+      const key = `${(w.division||'').toLowerCase()}|||${rc}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(w);
+    }
+    for (const list of Object.values(groups)) {
+      if (list.length < 2) continue;
+      for (let i=0; i<list.length; i++) {
+        for (let j=i+1; j<list.length; j++) {
+          const a=list[i], b=list[j];
+          const ks = [parseChainage(a.km_start), parseChainage(a.km_end), parseChainage(b.km_start), parseChainage(b.km_end)];
+          if (ks.some(v=>v===null)) continue;
+          if (ks[0]<=ks[3] && ks[2]<=ks[1]) {
+            this.flag('R04', a,
+              `Overlapping maintenance on ${a.road_code}: Km ${a.km_start}-${a.km_end} and ${b.km_start}-${b.km_end}. Source: ${a._src}.`,
+              { road: a.road_code, km1: `${a.km_start}-${a.km_end}`, km2: `${b.km_start}-${b.km_end}` },
+              'CRITICAL');
+          }
         }
+      }
+    }
+  }
 
-        // ==================== NORMALIZERS ====================
-        function normalizeCapitalWorks(rows) {
-            return rows.map(r => {
-                const get = (cands) => { const k = findCol(r, cands); return k !== null ? r[k] : undefined; };
-                const workName = get(['name of work', 'work name', 'work_name', 'name of the work']);
-                if (!workName) return null;
-                const rd = extractRoadDetails(String(workName));
-                return {
-                    type: 'capital',
-                    work_id: get(['work id', 'work_id', 'budget item no', 'budget_item_no']),
-                    work_name: String(workName).trim(),
-                    road_code: rd.roadCode || get(['road code', 'road_code', 'road no']),
-                    km_start: rd.kmStart || get(['km start', 'km_start', 'chainage from']),
-                    km_end: rd.kmEnd || get(['km end', 'km_end', 'chainage to']),
-                    aa_amount: normalizeAmount(get(['aa amount', 'aa_amount', 'administrative approval', 'approved cost'])),
-                    aa_date: parseDate(get(['aa date', 'aa_date', 'date of aa'])),
-                    tech_sanction_cost: normalizeAmount(get(['tech sanction cost', 'tech_sanction_cost', 'technical sanction amount', 'ts amount', 'technical sanction'])),
-                    ts_date: parseDate(get(['ts date', 'ts_date', 'technical sanction date', 'date of technical sanction'])),
-                    contract_cost: normalizeAmount(get(['contract cost', 'contract_cost', 'contract amount', 'agreement amount', 'agreement cost'])),
-                    cumulative_expenditure: normalizeAmount(get(['cumulative expenditure', 'cumulative_expenditure', 'up to date expenditure', 'total expenditure', 'up-to-date expenditure'])),
-                    work_order_date: parseDate(get(['work order date', 'work_order_date', 'date of work order'])),
-                    time_limit_months: normalizeAmount(get(['time limit', 'time_limit_months', 'original time limit', 'time limit months'])) || 0,
-                    stipulated_completion_date: parseDate(get(['stipulated completion date', 'stipulated_completion_date'])),
-                    ra_bill_payment_date: parseDate(get(['ra bill payment date', 'ra_bill_payment_date', 'payment date', 'date of ra bill payment'])),
-                    last_ra_bill_date: parseDate(get(['last ra bill date', 'last_ra_bill_date'])),
-                    bill_amount: normalizeAmount(get(['bill amount', 'bill_amount', 'gross amount'])),
-                    remark: String(get(['remark', 'remarks', 'status', 'progress']) || ''),
-                    division: String(get(['division', 'pw division', 'pwd division']) || ''),
-                    raw: r
-                };
-            }).filter(x => x);
+  // ── R05: DELAY IN COMPLETION ────────────────────────────────────────
+  runR05() {
+    if (!this.capital.length) return;
+    const today = new Date();
+    for (const row of this.capital) {
+      const ecd = getStipulatedDate(row);
+      if (!ecd) continue;
+      if (ecd >= today) continue;
+      // Check if incomplete
+      const cumExp = row.cumulative_expenditure;
+      const cc     = row.contract_cost;
+      const isComplete = cc && cumExp && cumExp >= cc * 0.95;
+      if (isComplete) continue;
+      const delay = Math.floor((today - ecd) / 86400000);
+      if (delay < 7) continue;
+      this.flag('R05', row,
+        `Work delayed ${delay} days past stipulated completion ${fmtDate(ecd)}.`,
+        { stipulated_completion_date: fmtDate(ecd), delay_days: delay });
+    }
+  }
+
+  // ── R06: SPLITTING TO AVOID E-TENDER ───────────────────────────────
+  runR06() {
+    if (!this.agreement.length) return;
+    const groups = {};
+    for (const row of this.agreement) {
+      const cn = (row.contractor_name||'').trim();
+      if (!cn) continue;
+      const yr = row.year || '';
+      const rc = (row.road_code||'');
+      const key = `${cn}|||${rc}|||${yr}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(row);
+    }
+    for (const [key, list] of Object.entries(groups)) {
+      const below = list.filter(r => r.tender_cost && r.tender_cost > 0 && r.tender_cost < THRESHOLDS.etender_threshold);
+      if (below.length < 2) continue;
+      const total = below.reduce((s,r)=>s+(r.tender_cost||0), 0);
+      const cn = key.split('|||')[0];
+      this.flag('R06', list[0],
+        `${below.length} works by "${cn.slice(0,40)}", each below ${fmtAmt(THRESHOLDS.etender_threshold)} threshold. Combined ${fmtAmt(total)}.`,
+        { contractor: cn, works_count: below.length, combined_cost: total.toFixed(2) });
+    }
+  }
+
+  // ── R07: NO CENTAGE RECOVERY ────────────────────────────────────────
+  runR07() {
+    if (!this.deposit.length) return;
+    for (const row of this.deposit) {
+      const bill = row.bill_amount;
+      if (!bill || bill <= 0) continue;
+      const centage = row.centage_amount;
+      if (centage !== null && centage !== undefined && centage > 0) continue;
+      const rate = THRESHOLDS.centage_rate;
+      const expected = bill * rate;
+      this.flag('R07', row,
+        `Bill ${fmtAmt(bill)} paid but centage (${fmtAmt(expected)}) not recovered.`,
+        { bill_amount: bill, expected_centage: expected.toFixed(2), rate_pct: (rate*100).toFixed(1) });
+    }
+  }
+
+  // ── R08: UNSPENT BALANCE NOT RETURNED ──────────────────────────────
+  runR08() {
+    if (!this.deposit.length) return;
+    for (const row of this.deposit) {
+      const bal = row.balance_amount;
+      if (!bal || bal <= THRESHOLDS.unspent_balance) continue;
+      const remark = (row.remark||'').toLowerCase();
+      const completed = ['completed','finished','work done'].some(k=>remark.includes(k));
+      const cumExp = row.cumulative_expenditure;
+      const aa     = row.aa_amount;
+      const expProxy = aa && aa>0 && cumExp && cumExp >= aa*0.95;
+      if (completed || expProxy) {
+        this.flag('R08', row,
+          `Work completed but unspent balance ${fmtAmt(bal)} not returned.`,
+          { balance_amount: bal.toFixed(2) });
+      }
+    }
+  }
+
+  // ── R09: EXCESS >25% OVER CONTRACT COST ────────────────────────────
+  runR09() {
+    if (!this.capital.length) return;
+    for (const row of this.capital) {
+      const cumExp = row.cumulative_expenditure;
+      const cc     = row.contract_cost;
+      if (!cumExp || !cc || cc<=0 || cumExp<=0) continue;
+      if (cumExp > cc * THRESHOLDS.excess_25_percent) {
+        const excess = cumExp - cc;
+        const pct = (excess/cc*100).toFixed(1);
+        this.flag('R09', row,
+          `Cum. exp ${fmtAmt(cumExp)} exceeds contract cost ${fmtAmt(cc)} by ${pct}% (>25%).`,
+          { excess_amount: excess.toFixed(2), excess_pct: pct });
+      }
+    }
+  }
+
+  // ── R10: ABANDONED WORK ─────────────────────────────────────────────
+  runR10() {
+    if (!this.capital.length) return;
+    const today = new Date();
+    const threeYrsAgo = new Date(today.getFullYear()-3, today.getMonth(), today.getDate());
+    for (const row of this.capital) {
+      const cumExp = row.cumulative_expenditure;
+      const cc     = row.contract_cost;
+      if (!cumExp || !cc || cc<=0) continue;
+      if (cumExp >= cc * THRESHOLDS.abandoned_utilization) continue;
+      const util = (cumExp/cc*100).toFixed(1);
+      // Find last activity date
+      const lastDate = row.last_ra_bill_date || row.ra_bill_payment_date || row.stipulated_completion_date || row.work_order_date;
+      if (!lastDate) {
+        const remark = (row.remark||'').toLowerCase();
+        if (['abandoned','stopped','stalled','incomplete','held up'].some(k=>remark.includes(k))) {
+          this.flag('R10', row,
+            `Utilization ${util}% (<75%) and remark suggests work stopped. No RA bill date.`,
+            { utilization_pct: util, remark: remark.slice(0,100) }, 'HIGH');
         }
-        function normalizeDepositWorks(rows) {
-            return rows.map(r => {
-                const get = (cands) => { const k = findCol(r, cands); return k !== null ? r[k] : undefined; };
-                const workName = get(['name of work', 'work name', 'work_name']);
-                if (!workName) return null;
-                return {
-                    type: 'deposit',
-                    work_id: get(['deposit work id', 'work id', 'work_id']),
-                    work_name: String(workName).trim(),
-                    aa_amount: normalizeAmount(get(['aa amount', 'aa_amount', 'administrative approval'])),
-                    cumulative_receipt_amount: normalizeAmount(get(['cumulative receipt amount', 'cumulative_receipt_amount', 'total receipt', 'amount received', 'receipt amount'])),
-                    receipt_date: parseDate(get(['receipt date', 'receipt_date', 'date of receipt', 'fund received date'])),
-                    bill_amount: normalizeAmount(get(['bill amount', 'bill_amount'])),
-                    centage_amount: normalizeAmount(get(['centage amount', 'centage_amount', 'centage'])),
-                    cumulative_expenditure: normalizeAmount(get(['cumulative expenditure', 'cumulative_expenditure', 'up to date expenditure', 'total expenditure'])),
-                    balance_amount: normalizeAmount(get(['balance amount', 'balance_amount', 'unspent balance', 'balance amount with ddo'])),
-                    remark: String(get(['remark', 'remarks', 'status']) || ''),
-                    work_order_date: parseDate(get(['work order date', 'work_order_date'])),
-                    division: String(get(['division', 'pw division']) || ''),
-                    user_department: String(get(['user department', 'user_department']) || ''),
-                    raw: r
-                };
-            }).filter(x => x);
-        }
-        function normalizeCashBook(rows) {
-            return rows.map(r => {
-                const get = (cands) => { const k = findCol(r, cands); return k !== null ? r[k] : undefined; };
-                const amtVal = get(['amount', 'paid', 'debit', 'payment amount', 'rs']);
-                const amt = normalizeAmount(amtVal);
-                if (!amt || amt <= 0) return null;
-                return {
-                    type: 'cashbook',
-                    voucher_no: get(['voucher no', 'voucher_no', 'voucher']),
-                    date: parseDate(get(['date', 'voucher date'])),
-                    amount: amt,
-                    narration: String(get(['narration', 'particulars', 'description', 'details']) || ''),
-                    head_of_accounts: String(get(['head of accounts', 'head_of_accounts', 'major head', 'classification', 'account head']) || ''),
-                    payment_mode: String(get(['payment mode', 'payment_mode']) || ''),
-                    raw: r
-                };
-            }).filter(x => x);
-        }
-        function normalizeAgreements(rows) {
-            return rows.map(r => {
-                const get = (cands) => { const k = findCol(r, cands); return k !== null ? r[k] : undefined; };
-                const workName = get(['work name', 'work_name', 'name of work', 'description']);
-                const agreementNo = get(['agreement no', 'agreement_no', 'agreement number', 'b1/']);
-                if (!workName && !agreementNo) return null;
-                const amt = normalizeAmount(get(['amount', 'contract amount', 'agreement amount', 'cost', 'value']));
-                const pba = parsePercentBelowAbove(get(['% above or below', 'percent above below', 'above below', 'tender percent']));
-                const yrMatch = String(agreementNo || '').match(/(\d{4}-\d{2})/);
-                const year = yrMatch ? yrMatch[1] : String(get(['year', 'financial year']) || '');
-                return {
-                    type: 'agreement',
-                    agreement_no: String(agreementNo || ''),
-                    work_name: String(workName || ''),
-                    amount: amt,
-                    year: year,
-                    contractor: String(get(['contractor', 'agency', 'name of contractor']) || ''),
-                    percent_below_above: pba,
-                    raw: r
-                };
-            }).filter(x => x);
-        }
+        continue;
+      }
+      if (lastDate < threeYrsAgo) {
+        const yrs = ((today-lastDate)/(365.25*86400000)).toFixed(1);
+        this.flag('R10', row,
+          `Utilization ${util}% (<75%). Last activity ${yrs} years ago (${fmtDate(lastDate)}).`,
+          { utilization_pct: util, years_since_last_activity: yrs });
+      }
+    }
+  }
 
-        // ==================== PDF TEXT PARSERS ====================
-        function parsePDFUtilizationCerts(text) {
-            const certs = [];
-            const sections = text.split(/Utilisation Certificate/i);
-            for (let i = 1; i < sections.length; i++) {
-                const sec = sections[i];
-                const idMatch = sec.match(/Deposit Work ID\s*:\s*(\S+)/i);
-                const nameMatch = sec.match(/Name of Work\s*:\s*\n?\s*([^\n]+(?:\n[^\n]+)*?)(?=\n\s*User Department|\n\s*AA Amount)/i);
-                const aaMatch = sec.match(/AA Amount.*?Rs\.\s*([\d,]+)/i);
-                const contractMatch = sec.match(/Contract\s*(?:Cost|Amount)\s*(?:Rs\.)?\s*([\d,]+)/i);
-                const expMatch = sec.match(/Up-to-date expenditure.*?=\s*Rs\.\s*([\d,]+)/i);
-                const balMatch = sec.match(/balance amount of rupees with DDO\s*=\s*Rs\.\s*([\d,]+)/i);
-                if (idMatch) {
-                    const parseAmt = s => s ? parseInt(s.replace(/,/g, '')) : 0;
-                    certs.push({
-                        type: 'deposit',
-                        work_id: idMatch[1],
-                        work_name: nameMatch ? nameMatch[1].replace(/\n/g, ' ').trim() : '',
-                        aa_amount: parseAmt(aaMatch && aaMatch[1]),
-                        contract_cost: parseAmt(contractMatch && contractMatch[1]),
-                        cumulative_expenditure: parseAmt(expMatch && expMatch[1]),
-                        balance_amount: parseAmt(balMatch && balMatch[1]),
-                        remark: '',
-                        division: ''
-                    });
-                }
-            }
-            return certs;
-        }
-        function parsePDFCapitalWorks(text) {
-            const works = [];
-            const sections = text.split(/Work ID\s+(\w+\/\d+\/\d+\/\d+)/i);
-            for (let i = 1; i < sections.length; i += 2) {
-                const workId = sections[i];
-                const content = sections[i + 1];
-                if (!content) continue;
-                const work = { type: 'capital', work_id: workId, work_name: '', aa_amount: 0, contract_cost: 0, cumulative_expenditure: 0, time_limit_months: 0, work_order_date: null, tech_sanction_cost: 0, ts_date: null, ra_bill_payment_date: null, last_ra_bill_date: null, remark: '', road_code: '', km_start: '', km_end: '' };
-                const nameMatch = content.match(/Name Of The\s+Work\(English\)\s+([\s\S]+?)(?=Name Of The\s+Work\(Marathi\)|Administrative|AA Amount)/i);
-                if (nameMatch) {
-                    work.work_name = nameMatch[1].replace(/\n/g, ' ').trim();
-                    const rd = extractRoadDetails(work.work_name);
-                    work.road_code = rd.roadCode; work.km_start = rd.kmStart; work.km_end = rd.kmEnd;
-                }
-                const aaMatch = content.match(/AA Amount\s*\(Rs\.\)\s*([\d,]+)/i);
-                if (aaMatch) work.aa_amount = parseInt(aaMatch[1].replace(/,/g, ''));
-                const contractMatch = content.match(/(?:Contract|Agreement)\s*(?:Amount|Cost)\s*(?:Rs\.)?\s*([\d,]+)/i);
-                if (contractMatch) work.contract_cost = parseInt(contractMatch[1].replace(/,/g, ''));
-                const tsMatch = content.match(/Technical\s*Sanction\s*(?:Amount|Cost)?\s*(?:Rs\.)?\s*([\d,]+)/i);
-                if (tsMatch) work.tech_sanction_cost = parseInt(tsMatch[1].replace(/,/g, ''));
-                const timeMatch = content.match(/Original Time Limit In Days\s+(\d+)/i);
-                if (timeMatch) work.time_limit_months = Math.ceil(parseInt(timeMatch[1]) / 30);
-                const dateMatch = content.match(/Date Of Work\s+Order\s+([\d\-]+)/i);
-                if (dateMatch) work.work_order_date = parseDate(dateMatch[1]);
-                const expSection = content.split('Payment Details')[1];
-                if (expSection) {
-                    const lines = expSection.split('\n').map(l => l.trim()).filter(l => l);
-                    let maxExp = 0, lastDate = null;
-                    for (let line of lines) {
-                        const dateInLine = parseDate(line);
-                        if (dateInLine && (!lastDate || dateInLine > lastDate)) lastDate = dateInLine;
-                        const amtMatch = line.match(/(\d{6,})/g);
-                        if (amtMatch) {
-                            const nums = amtMatch.map(n => parseInt(n));
-                            const maxInLine = Math.max(...nums);
-                            if (maxInLine > maxExp) maxExp = maxInLine;
-                        }
-                    }
-                    work.cumulative_expenditure = maxExp;
-                    work.ra_bill_payment_date = lastDate;
-                    work.last_ra_bill_date = lastDate;
-                }
-                works.push(work);
-            }
-            return works;
-        }
-        function parsePDFAgreements(text) {
-            const agreements = [];
-            const lines = text.split('\n');
-            for (let line of lines) {
-                const agreementMatch = line.match(/B1\/(\d+)\s+OF\s+(\d{4}-\d{2})/i);
-                if (agreementMatch) {
-                    const parts = line.split(/\s{2,}/);
-                    let workName = '', amount = 0, contractor = '';
-                    for (let j = 0; j < parts.length; j++) {
-                        if (parts[j].includes('OF')) { if (j+1 < parts.length) contractor = parts[j+1]; if (j+2 < parts.length) workName = parts[j+2]; break; }
-                    }
-                    const amountMatch = line.match(/([\d,]{6,})\s+(?:Below|Above|Equal)/i);
-                    if (amountMatch) amount = parseInt(amountMatch[1].replace(/,/g, ''));
-                    const pba = parsePercentBelowAbove(line);
-                    if (workName || amount > 0) {
-                        agreements.push({ type: 'agreement', agreement_no: `B1/${agreementMatch[1]} OF ${agreementMatch[2]}`, work_name: workName.trim(), amount, year: agreementMatch[2], contractor: contractor.trim(), percent_below_above: pba });
-                    }
-                }
-            }
-            return agreements;
-        }
-        function parsePDFCashBook(text) {
-            const entries = [];
-            const lines = text.split('\n');
-            for (let line of lines) {
-                const amtMatch = line.match(/Rs[\.\s]*([\d,]+(?:\.\d+)?)/);
-                if (amtMatch) {
-                    const amt = normalizeAmount(amtMatch[1]);
-                    if (amt >= 100000) {
-                        entries.push({ type: 'cashbook', amount: amt, narration: line.trim(), head_of_accounts: '', date: null });
-                    }
-                }
-            }
-            return entries;
-        }
+  // ── R11: INFLATED SSR/DSR ───────────────────────────────────────────
+  runR11() {
+    if (!this.agreement.length) return;
+    // Group by division
+    const groups = {};
+    for (const row of this.agreement) {
+      const div = row.division || 'Unknown';
+      if (!groups[div]) groups[div] = [];
+      groups[div].push(row);
+    }
+    for (const [div, list] of Object.entries(groups)) {
+      const total = list.length;
+      if (!total) continue;
+      const below10 = list.filter(r => r.percentage_below !== null && r.percentage_below !== undefined && r.percentage_below < -10);
+      if (!below10.length) continue;
+      const wp = below10.length / total;
+      const costCol = ['estimated_cost','tender_cost','contract_cost'].find(c=>list.some(r=>r[c]));
+      const tc = costCol ? list.reduce((s,r)=>s+(r[costCol]||0),0) : 0;
+      const bc = costCol ? below10.reduce((s,r)=>s+(r[costCol]||0),0) : 0;
+      const cp = tc > 0 ? bc/tc : 0;
+      if (wp > THRESHOLDS.inflated_ssr_percent || cp > THRESHOLDS.inflated_ssr_percent) {
+        this.flag('R11', list[0],
+          `${below10.length}/${total} works (${(wp*100).toFixed(1)}%) tendered >10% below estimate. Cost ${fmtAmt(bc)} (${(cp*100).toFixed(1)}% of total). SSR may be inflated.`,
+          { below_10_count: below10.length, works_pct: (wp*100).toFixed(1), cost_pct: (cp*100).toFixed(1) });
+      }
+    }
+  }
 
-        // ==================== DETECTORS (ALL 20 RULES) ====================
-        function detectR01(depositWorks) {
-            const flags = [];
-            for (let w of depositWorks) {
-                const remark = (w.remark || '').toLowerCase();
-                const workName = (w.work_name || '').toLowerCase();
-                const diversionKeywords = ['transfer to', 'other division', 'unavoidable', 'contingencies', 'diversion'];
-                const hasDiversion = diversionKeywords.some(k => remark.includes(k));
-                if (hasDiversion) {
-                    flags.push({ ruleId: 'R01', code: 'DIVERSION_OF_FUND', riskCategory: 'HIGH', work: w.work_name, details: `Deposit ID: ${w.work_id || 'N/A'}`, remark: 'Remark indicates funds diverted / transferred for purpose other than sanctioned work', evidence: `Remark: "${w.remark}" vs Work: "${w.work_name}"`, division: w.division });
-                    continue;
-                }
-                const workTokens = workName.split(/\s+/).filter(t => t.length > 3 && !['work','construction','road','building','the','and','of','to','for'].includes(t));
-                const remarkTokens = remark.split(/\s+/).filter(t => t.length > 3);
-                if (remarkTokens.length > 0 && workTokens.length > 0) {
-                    const overlap = workTokens.some(t => remarkTokens.includes(t));
-                    if (!overlap && remark.length > 10) {
-                        flags.push({ ruleId: 'R01', code: 'DIVERSION_OF_FUND', riskCategory: 'HIGH', work: w.work_name, details: `Deposit ID: ${w.work_id || 'N/A'}`, remark: 'Expenditure remark does not correspond to sanctioned work name – possible diversion', evidence: `Work: "${w.work_name}", Remark: "${w.remark}"`, division: w.division });
-                    }
-                }
-            }
-            return flags;
-        }
-        function detectR02(capitalWorks) {
-            const flags = [];
-            const constructionKeywords = ['construction','progress','crust','surfacing','bituminous','basecourse','widening','bridge','concrete','pavement','rebuilt'];
-            for (let w of capitalWorks) {
-                const remark = (w.remark || '').toLowerCase();
-                if (remark.includes('survey')) {
-                    const hasConstruction = constructionKeywords.some(k => remark.includes(k) || w.work_name.toLowerCase().includes(k));
-                    if (!hasConstruction) {
-                        flags.push({ ruleId: 'R02', code: 'WASTEFUL_SURVEY', riskCategory: 'HIGH', work: w.work_name, details: `Work ID: ${w.work_id || 'N/A'}`, remark: 'Expenditure only on survey work with no construction activity detected', evidence: `Remark: "${w.remark}", Cumulative Exp: Rs.${w.cumulative_expenditure.toLocaleString()}`, division: w.division });
-                    }
-                }
-            }
-            return flags;
-        }
-        function detectR03(works) {
-            const flags = [];
-            for (let w of works) {
-                if (w.aa_amount > 0 && w.cumulative_expenditure > w.aa_amount * 1.10) {
-                    const excess = ((w.cumulative_expenditure / w.aa_amount - 1) * 100).toFixed(1);
-                    flags.push({ ruleId: 'R03', code: 'EXCESS_WITHOUT_APPROVAL', riskCategory: 'HIGH', work: w.work_name, details: `ID: ${w.work_id || 'N/A'}`, remark: `Expenditure exceeds AA amount by ${excess}% without Government approval`, evidence: `AA: Rs.${w.aa_amount.toLocaleString()}, Exp: Rs.${w.cumulative_expenditure.toLocaleString()}`, division: w.division });
-                }
-            }
-            return flags;
-        }
-        function detectR04(capitalWorks, agreements) {
-            const flags = [];
-            const all = [];
-            for (let w of capitalWorks) {
-                if (w.road_code) all.push({ ...w, source: 'BEAMS' });
-            }
-            for (let a of agreements) {
-                const rd = extractRoadDetails(a.work_name);
-                if (rd.roadCode) all.push({ work_name: a.work_name, road_code: rd.roadCode, km_start: rd.kmStart, km_end: rd.kmEnd, source: 'Agreement', agreement_no: a.agreement_no, division: '' });
-            }
-            for (let i = 0; i < all.length; i++) {
-                for (let j = i + 1; j < all.length; j++) {
-                    const a = all[i], b = all[j];
-                    if (a.road_code === b.road_code && kmOverlap(a.km_start, a.km_end, b.km_start, b.km_end)) {
-                        flags.push({ ruleId: 'R04', code: 'OVERLAPPING_MAINTENANCE', riskCategory: 'HIGH', work: a.work_name, details: `Overlapping with: ${b.work_name} (${b.source})`, remark: `Both works on ${a.road_code} have overlapping chainages – possible duplication / avoidable DLP expenditure`, evidence: `A: ${a.km_start}-${a.km_end}, B: ${b.km_start}-${b.km_end}`, division: a.division || b.division });
-                    }
-                }
-            }
-            return flags;
-        }
-        function detectR05(capitalWorks) {
-            const flags = [];
-            const today = new Date();
-            for (let w of capitalWorks) {
-                const scd = w.stipulated_completion_date;
-                if (!scd) continue;
-                const isCompleted = (w.remark || '').toLowerCase().includes('completed');
-                if (scd < today && !isCompleted) {
-                    const days = Math.floor((today - scd) / (1000*60*60*24));
-                    flags.push({ ruleId: 'R05', code: 'DELAY_COMPLETION', riskCategory: 'MEDIUM', work: w.work_name, details: `ID: ${w.work_id || 'N/A'}`, remark: `Work delayed by ${days} days beyond stipulated completion`, evidence: `Stipulated: ${formatDate(scd)}, Today: ${formatDate(today)}`, division: w.division });
-                }
-            }
-            return flags;
-        }
-        function detectR06(agreements) {
-            const flags = [];
-            const groups = {};
-            for (let a of agreements) {
-                if (!a.contractor || !a.year) continue;
-                const rd = extractRoadDetails(a.work_name);
-                const key = `${a.contractor}|${rd.roadCode || 'UNK'}|${a.year}`;
-                if (!groups[key]) groups[key] = [];
-                groups[key].push(a);
-            }
-            for (let [key, list] of Object.entries(groups)) {
-                const under10L = list.filter(a => a.amount > 0 && a.amount < 1000000);
-                if (under10L.length >= 2) {
-                    const total = under10L.reduce((s, a) => s + a.amount, 0);
-                    flags.push({ ruleId: 'R06', code: 'SPLITTING_OF_WORK', riskCategory: 'HIGH', work: `${under10L[0].work_name}`, details: `${under10L.length} agreements to same contractor in ${under10L[0].year}`, remark: 'Works split into multiple sub-Rs.10 lakh contracts to avoid e-tendering', evidence: `Total: Rs.${total.toLocaleString()}, Agreements: ${under10L.map(a => a.agreement_no).join(', ')}`, division: '' });
-                }
-            }
-            return flags;
-        }
-        function detectR07(depositWorks) {
-            const flags = [];
-            for (let w of depositWorks) {
-                if (w.bill_amount > 0 && w.centage_amount === 0) {
-                    flags.push({ ruleId: 'R07', code: 'NO_CENTAGE_RECOVERY', riskCategory: 'HIGH', work: w.work_name, details: `Deposit ID: ${w.work_id || 'N/A'}`, remark: '5% centage charges not recovered despite bill payments', evidence: `Bill: Rs.${w.bill_amount.toLocaleString()}, Centage: Rs.${w.centage_amount.toLocaleString()}`, division: w.division });
-                }
-            }
-            return flags;
-        }
-        function detectR08(depositWorks) {
-            const flags = [];
-            for (let w of depositWorks) {
-                if (w.balance_amount > 100000 && (w.remark || '').toLowerCase().includes('completed')) {
-                    flags.push({ ruleId: 'R08', code: 'UNSPENT_BALANCE', riskCategory: 'HIGH', work: w.work_name, details: `Deposit ID: ${w.work_id || 'N/A'}`, remark: 'Work completed but unspent balance not returned to user department', evidence: `Balance: Rs.${w.balance_amount.toLocaleString()}`, division: w.division });
-                }
-            }
-            return flags;
-        }
-        function detectR09(works) {
-            const flags = [];
-            for (let w of works) {
-                const cc = w.contract_cost || w.aa_amount;
-                if (cc > 0 && w.cumulative_expenditure > cc * 1.25) {
-                    const excess = ((w.cumulative_expenditure / cc - 1) * 100).toFixed(1);
-                    flags.push({ ruleId: 'R09', code: 'EXCESS_25_PERCENT', riskCategory: 'HIGH', work: w.work_name, details: `ID: ${w.work_id || 'N/A'}`, remark: `Expenditure exceeds contract cost by ${excess}%, beyond permissible 25% under Clause 38`, evidence: `Contract: Rs.${cc.toLocaleString()}, Exp: Rs.${w.cumulative_expenditure.toLocaleString()}`, division: w.division });
-                }
-            }
-            return flags;
-        }
-        function detectR10(works) {
-            const flags = [];
-            const threeYearsAgo = new Date();
-            threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
-            for (let w of works) {
-                const cc = w.contract_cost || w.aa_amount;
-                if (cc > 0 && w.cumulative_expenditure < cc * 0.75) {
-                    const lastDate = w.last_ra_bill_date || w.ra_bill_payment_date;
-                    if (lastDate && lastDate < threeYearsAgo) {
-                        flags.push({ ruleId: 'R10', code: 'ABANDONED_WORK', riskCategory: 'HIGH', work: w.work_name, details: `ID: ${w.work_id || 'N/A'}`, remark: `Only ${((w.cumulative_expenditure/cc)*100).toFixed(1)}% utilised; no payment in 3+ years – work appears abandoned`, evidence: `Last Payment: ${formatDate(lastDate)}, Contract: Rs.${cc.toLocaleString()}`, division: w.division });
-                    }
-                }
-            }
-            return flags;
-        }
-        function detectR11(agreements) {
-            const flags = [];
-            const byYear = {};
-            for (let a of agreements) { if (a.year) { if (!byYear[a.year]) byYear[a.year] = []; byYear[a.year].push(a); } }
-            for (let [year, list] of Object.entries(byYear)) {
-                if (!list.length) continue;
-                const totalCost = list.reduce((s, a) => s + a.amount, 0);
-                const below10 = list.filter(a => a.percent_below_above && a.percent_below_above.direction === 'below' && a.percent_below_above.pct >= 10);
-                if (!below10.length) continue;
-                const pctWorks = (below10.length / list.length) * 100;
-                const belowCost = below10.reduce((s, a) => s + a.amount, 0);
-                const pctCost = totalCost > 0 ? (belowCost / totalCost) * 100 : 0;
-                if (pctWorks > 20 || pctCost > 20) {
-                    flags.push({ ruleId: 'R11', code: 'INFLATED_SSR', riskCategory: 'HIGH', work: `Year ${year} awarded works`, details: `Agreement Register – ${year}`, remark: `${below10.length}/${list.length} works (${pctWorks.toFixed(1)}%) accepted ≥10% below estimate; cost share ${pctCost.toFixed(1)}%. Estimates should be recast per Para 150.`, evidence: `Below-10%: ${below10.length}, Cost: Rs.${belowCost.toLocaleString()}/Rs.${totalCost.toLocaleString()}`, division: '' });
-                }
-            }
-            return flags;
-        }
-        function detectR12(works) {
-            const flags = [];
-            for (let w of works) {
-                const remark = (w.remark || '').toLowerCase();
-                const isTransfer = remark.includes('transfer') || remark.includes('electrical division') || remark.includes('other division');
-                const amt = w.bill_amount || w.cumulative_expenditure;
-                if (isTransfer && amt >= 5000000) {
-                    const date = w.ra_bill_payment_date || w.work_order_date;
-                    const isMarch = date && date.getMonth() === 2;
-                    if (isMarch || !date) {
-                        flags.push({ ruleId: 'R12', code: 'PARKING_OF_FUND', riskCategory: 'HIGH', work: w.work_name, details: `ID: ${w.work_id || 'N/A'}`, remark: `Transfer of Rs.${amt.toLocaleString()} to another division in March – indicative of fund parking`, evidence: `Amount: Rs.${amt.toLocaleString()}, Date: ${formatDate(date)}, Remark: "${w.remark}"`, division: w.division });
-                    }
-                }
-            }
-            return flags;
-        }
-        function detectR13(capitalWorks) {
-            const flags = [];
-            for (let w of capitalWorks) {
-                if (!w.ra_bill_payment_date || !w.stipulated_completion_date) continue;
-                if (w.ra_bill_payment_date > w.stipulated_completion_date) {
-                    const days = Math.floor((w.ra_bill_payment_date - w.stipulated_completion_date) / (1000*60*60*24));
-                    flags.push({ ruleId: 'R13', code: 'NO_DELAY_PENALTY', riskCategory: 'MEDIUM', work: w.work_name, details: `ID: ${w.work_id || 'N/A'}`, remark: `RA bill paid ${days} days after stipulated completion. Contractor liable for damages.`, evidence: `RA Bill: ${formatDate(w.ra_bill_payment_date)}, Stipulated: ${formatDate(w.stipulated_completion_date)}`, division: w.division });
-                }
-            }
-            return flags;
-        }
-        function detectR14(capitalWorks) {
-            const flags = [];
-            for (let w of capitalWorks) {
-                if (!w.ra_bill_payment_date || !w.stipulated_completion_date) continue;
-                if (w.ra_bill_payment_date > w.stipulated_completion_date) {
-                    const days = Math.floor((w.ra_bill_payment_date - w.stipulated_completion_date) / (1000*60*60*24));
-                    flags.push({ ruleId: 'R14', code: 'INSURANCE_LAPSE', riskCategory: 'MEDIUM', work: w.work_name, details: `ID: ${w.work_id || 'N/A'}`, remark: `Work delayed by ${days} days. Insurance Policy & Bank Guarantee must be renewed till completion per tender conditions.`, evidence: `Stipulated: ${formatDate(w.stipulated_completion_date)}, RA Bill: ${formatDate(w.ra_bill_payment_date)}`, division: w.division });
-                }
-            }
-            return flags;
-        }
-        function detectR15(capitalWorks) {
-            const flags = [];
-            const byRoad = {};
-            for (let w of capitalWorks) {
-                if (!w.road_code) continue;
-                if (!byRoad[w.road_code]) byRoad[w.road_code] = [];
-                byRoad[w.road_code].push(w);
-            }
-            for (let [road, list] of Object.entries(byRoad)) {
-                if (list.length < 2) continue;
-                const sorted = [...list].sort((a, b) => (kmToDecimal(a.km_start) || 0) - (kmToDecimal(b.km_start) || 0));
-                for (let i = 0; i < sorted.length - 1; i++) {
-                    const w1 = sorted[i], w2 = sorted[i+1];
-                    const ts1 = w1.tech_sanction_cost || w1.contract_cost || 0;
-                    const ts2 = w2.tech_sanction_cost || w2.contract_cost || 0;
-                    if (ts1 < 10000000 || ts2 < 10000000) continue;
-                    const end1 = kmToDecimal(w1.km_end), start2 = kmToDecimal(w2.km_start);
-                    if (end1 !== null && start2 !== null && (start2 - end1) <= 1.0) {
-                        flags.push({ ruleId: 'R15', code: 'SPLIT_HIGHER_SANCTION', riskCategory: 'MEDIUM', work: `${road} adjacent works`, details: `${w1.work_name} & ${w2.work_name}`, remark: `Adjacent works on ${road} each with TS > Rs.1 Cr appear split to avoid higher authority sanction`, evidence: `TS1: Rs.${(ts1/1e7).toFixed(2)} Cr [${w1.km_start}-${w1.km_end}], TS2: Rs.${(ts2/1e7).toFixed(2)} Cr [${w2.km_start}-${w2.km_end}]`, division: w1.division || w2.division });
-                    }
-                }
-            }
-            return flags;
-        }
-        function detectR16(cashBook) {
-            const flags = [];
-            const hrRe = /paid\s+vide\s+(hand\s+receipt|h\.?r\.?)|\bhand\s+receipt\b|\bpaid\s+vide\s+hr\b/i;
-            for (let e of cashBook) {
-                if (e.amount >= 1000000 && hrRe.test(e.narration)) {
-                    flags.push({ ruleId: 'R16', code: 'HAND_RECEIPT_PAYMENT', riskCategory: 'MEDIUM', work: 'Cash Book Form 10', details: `Voucher: ${e.voucher_no || 'N/A'}`, remark: `Payment of Rs.${e.amount.toLocaleString()} made via Hand Receipt. Huge payments on HR should be avoided per MPW Manual.`, evidence: `Amount: Rs.${e.amount.toLocaleString()}, Narration: "${e.narration}"`, division: '' });
-                }
-            }
-            return flags;
-        }
-        function detectR17(cashBook) {
-            const flags = [];
-            for (let e of cashBook) {
-                const head = (e.head_of_accounts || '').trim();
-                const isEmpty = !head || head === '-' || head === 'n/a' || head === '0';
-                if (e.amount >= 1000000 && isEmpty) {
-                    flags.push({ ruleId: 'R17', code: 'NO_CLASSIFICATION', riskCategory: 'LOW', work: 'Cash Book Form 10', details: `Voucher: ${e.voucher_no || 'N/A'}`, remark: `Payment of Rs.${e.amount.toLocaleString()} without Major Head / classification entry`, evidence: `Amount: Rs.${e.amount.toLocaleString()}, Head: "${head || '(empty)'}"`, division: '' });
-                }
-            }
-            return flags;
-        }
-        function detectR18(works) {
-            const flags = [];
-            for (let w of works) {
-                if (w.ts_date && w.aa_date && w.ts_date < w.aa_date) {
-                    flags.push({ ruleId: 'R18', code: 'TS_BEFORE_AA', riskCategory: 'LOW', work: w.work_name, details: `ID: ${w.work_id || 'N/A'}`, remark: 'Technical Sanction accorded prior to Administrative Approval – irregular approval sequence', evidence: `TS: ${formatDate(w.ts_date)}, AA: ${formatDate(w.aa_date)}`, division: w.division });
-                }
-            }
-            return flags;
-        }
-        function detectR19(depositWorks) {
-            const flags = [];
-            const oneYearAgo = new Date();
-            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-            for (let w of depositWorks) {
-                if (w.cumulative_expenditure === 0 && w.balance_amount > 0) {
-                    const rd = w.receipt_date || w.work_order_date;
-                    if (rd && rd < oneYearAgo) {
-                        flags.push({ ruleId: 'R19', code: 'BLOCKING_OF_FUNDS', riskCategory: 'MEDIUM', work: w.work_name, details: `Deposit ID: ${w.work_id || 'N/A'}`, remark: 'Funds received but no expenditure for over 1 year – blocking of government funds', evidence: `Balance: Rs.${w.balance_amount.toLocaleString()}, Receipt: ${formatDate(rd)}`, division: w.division });
-                    }
-                }
-            }
-            return flags;
-        }
-        function detectR20(depositWorks) {
-            const flags = [];
-            for (let w of depositWorks) {
-                if (w.cumulative_receipt_amount > 0 && w.aa_amount > 0 && w.cumulative_receipt_amount < w.aa_amount) {
-                    const short = w.aa_amount - w.cumulative_receipt_amount;
-                    flags.push({ ruleId: 'R20', code: 'SHORT_RECEIPT_DEPOSIT', riskCategory: 'MEDIUM', work: w.work_name, details: `Deposit ID: ${w.work_id || 'N/A'}`, remark: `Short receipt of Rs.${short.toLocaleString()} from user department against AA`, evidence: `AA: Rs.${w.aa_amount.toLocaleString()}, Received: Rs.${w.cumulative_receipt_amount.toLocaleString()}, Shortfall: Rs.${short.toLocaleString()}`, division: w.division });
-                }
-            }
-            return flags;
-        }
+  // ── R12: PARKING OF FUND ────────────────────────────────────────────
+  runR12() {
+    if (!this.capital.length) return;
+    for (const row of this.capital) {
+      const bill = row.bill_amount;
+      if (!bill || bill <= THRESHOLDS.parking_amount) continue;
+      const payDate = row.ra_bill_payment_date;
+      const isMarch = payDate instanceof Date && payDate.getMonth() === THRESHOLDS.parking_month;
+      const remark  = (row.remark||'').toLowerCase();
+      const hasTxfr = ['transfer','transferred','other division','parking','fag end'].some(k=>remark.includes(k));
+      if (!(isMarch || hasTxfr)) continue;
+      this.flag('R12', row,
+        `Transfer of ${fmtAmt(bill)} ${isMarch?'in March':'with transfer remark'}. Possible parking of fund.`,
+        { transfer_amount: bill.toFixed(2), is_march: isMarch });
+    }
+  }
 
-        // ==================== MAIN DETECTION ENGINE ====================
-        async function detectAllRedFlags(files) {
-            let capitalWorks = [], depositWorks = [], cashBook = [], agreements = [];
+  // ── R13: NO DELAY PENALTY ───────────────────────────────────────────
+  runR13() {
+    if (!this.capital.length) return;
+    for (const row of this.capital) {
+      const ecd     = getStipulatedDate(row);
+      const raDate  = row.ra_bill_payment_date;
+      if (!ecd || !raDate) continue;
+      if (raDate <= ecd) continue;
+      const delay = Math.floor((raDate-ecd)/86400000);
+      if (delay < 7) continue;
+      this.flag('R13', row,
+        `RA bill paid ${delay} days after stipulated completion (${fmtDate(ecd)}). No penalty imposed.`,
+        { delay_days: delay, ra_bill_date: fmtDate(raDate) });
+    }
+  }
 
-            for (let [fname, file] of Object.entries(files)) {
-                const ext = fname.split('.').pop().toLowerCase();
-                if (ext === 'xlsx' || ext === 'xls') {
-                    const sheets = await readExcel(file);
-                    for (let sheet of sheets) {
-                        const rows = sheet.rows;
-                        if (!rows.length) continue;
-                        const headers = Object.keys(rows[0]).join(' ').toLowerCase();
-                        if (headers.includes('deposit') || headers.includes('centage') || headers.includes('balance amount')) {
-                            depositWorks.push(...normalizeDepositWorks(rows));
-                        } else if (headers.includes('cash') || headers.includes('voucher') || headers.includes('form 10')) {
-                            cashBook.push(...normalizeCashBook(rows));
-                        } else if (headers.includes('agreement') || headers.includes('contractor') || headers.includes('b1/')) {
-                            agreements.push(...normalizeAgreements(rows));
-                        } else {
-                            capitalWorks.push(...normalizeCapitalWorks(rows));
-                        }
-                    }
-                } else if (ext === 'pdf') {
-                    const text = await readPDF(file);
-                    if (text.includes('Utilisation Certificate')) depositWorks.push(...parsePDFUtilizationCerts(text));
-                    if (text.includes('Payment Details') || text.includes('Work ID')) capitalWorks.push(...parsePDFCapitalWorks(text));
-                    if (text.includes('Agreement No') || text.includes('B1/')) agreements.push(...parsePDFAgreements(text));
-                    if (text.includes('Form 10') || text.includes('Cash Book')) cashBook.push(...parsePDFCashBook(text));
-                } else if (ext === 'docx') {
-                    const text = await readDOCX(file);
-                    agreements.push(...parsePDFAgreements(text));
-                }
-            }
+  // ── R14: INSURANCE / BG LAPSE ──────────────────────────────────────
+  runR14() {
+    if (!this.capital.length) return;
+    for (const row of this.capital) {
+      const ecd     = getStipulatedDate(row);
+      const raDate  = row.ra_bill_payment_date;
+      const cc      = row.contract_cost;
+      if (!ecd || !raDate || !cc) continue;
+      if (raDate <= ecd) continue;
+      if (cc <= THRESHOLDS.insurance_min_contract) continue;
+      const delay = Math.floor((raDate-ecd)/86400000);
+      if (delay < 7) continue;
+      this.flag('R14', row,
+        `High-value work (${fmtAmt(cc)}) delayed ${delay} days. Insurance/BG must be renewed till completion.`,
+        { contract_cost: cc.toFixed(2), delay_days: delay });
+    }
+  }
 
-            const flags = [
-                ...detectR01(depositWorks),
-                ...detectR02(capitalWorks),
-                ...detectR03([...capitalWorks, ...depositWorks]),
-                ...detectR04(capitalWorks, agreements),
-                ...detectR05(capitalWorks),
-                ...detectR06(agreements),
-                ...detectR07(depositWorks),
-                ...detectR08(depositWorks),
-                ...detectR09([...capitalWorks, ...depositWorks]),
-                ...detectR10([...capitalWorks, ...depositWorks]),
-                ...detectR11(agreements),
-                ...detectR12([...capitalWorks, ...depositWorks]),
-                ...detectR13(capitalWorks),
-                ...detectR14(capitalWorks),
-                ...detectR15(capitalWorks),
-                ...detectR16(cashBook),
-                ...detectR17(cashBook),
-                ...detectR18([...capitalWorks, ...depositWorks]),
-                ...detectR19(depositWorks),
-                ...detectR20(depositWorks)
-            ];
+  // ── R15: SPLIT TO AVOID HIGHER SANCTION ────────────────────────────
+  runR15() {
+    if (!this.capital.length) return;
+    const df = this.capital.filter(r => r.road_code && r.tech_sanction_cost && r.tech_sanction_cost > 0);
+    const groups = {};
+    for (const r of df) {
+      const key = `${(r.division||'').toLowerCase()}|||${(r.road_code||'').toLowerCase()}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    }
+    for (const list of Object.values(groups)) {
+      if (list.length < 2) continue;
+      const sorted = [...list].sort((a,b)=>(parseChainage(a.km_start)||0)-(parseChainage(b.km_start)||0));
+      for (let i=0; i<sorted.length-1; i++) {
+        const r1=sorted[i], r2=sorted[i+1];
+        const e1=parseChainage(r1.km_end), s2=parseChainage(r2.km_start);
+        if (e1===null || s2===null) continue;
+        const gap = s2-e1;
+        if (gap > THRESHOLDS.split_km_gap) continue;
+        const ts1=r1.tech_sanction_cost, ts2=r2.tech_sanction_cost;
+        if (ts1 <= THRESHOLDS.split_adjacent_amount || ts2 <= THRESHOLDS.split_adjacent_amount) continue;
+        if (ts1+ts2 <= THRESHOLDS.split_threshold) continue;
+        this.flag('R15', r1,
+          `Adjacent works on ${r1.road_code} (Km ${r1.km_start}-${r1.km_end} and ${r2.km_start}-${r2.km_end}). Combined TS ${fmtAmt(ts1+ts2)} exceeds threshold.`,
+          { combined_cost: (ts1+ts2).toFixed(2), km_gap: gap.toFixed(3) });
+      }
+    }
+  }
 
-            return {
-                flags,
-                totalFiles: Object.keys(files).length,
-                documentsAnalyzed: { capitalWorks: capitalWorks.length, depositWorks: depositWorks.length, agreements: agreements.length, cashBook: cashBook.length }
-            };
-        }
+  // ── R16: HAND RECEIPT PAYMENT ───────────────────────────────────────
+  runR16() {
+    if (!this.cash.length) return;
+    const hrRe = /paid\s+vide\s+(?:hand\s+receipt|h\.?r\.?)|hand\s+receipt|vide\s+h\.?r\./i;
+    for (const row of this.cash) {
+      const pay = row.payment_amount;
+      if (!pay || pay <= THRESHOLDS.hand_receipt_amount) continue;
+      const narr = `${row.narration||''} ${row.payment_mode||''} ${row.remark||''}`;
+      if (!hrRe.test(narr)) continue;
+      this.flag('R16', row,
+        `Payment ${fmtAmt(pay)} via Hand Receipt. Large HR payments are irregular per MPW Manual.`,
+        { payment_amount: pay.toFixed(2), narration: narr.slice(0,120) }, 'HIGH');
+    }
+  }
 
-        // ==================== DIVISION RISK SCORING ====================
-        function calculateDivisionRiskScores(flags) {
-            const divisionScores = {};
-            for (let f of flags) {
-                const div = f.division || 'Unknown Division';
-                if (!divisionScores[div]) {
-                    divisionScores[div] = { division: div, high: 0, medium: 0, low: 0, totalScore: 0, flags: [] };
-                }
-                divisionScores[div].flags.push(f);
-                if (f.riskCategory === 'HIGH') { divisionScores[div].high++; divisionScores[div].totalScore += 50; }
-                else if (f.riskCategory === 'MEDIUM') { divisionScores[div].medium++; divisionScores[div].totalScore += 30; }
-                else if (f.riskCategory === 'LOW') { divisionScores[div].low++; divisionScores[div].totalScore += 20; }
-            }
-            return Object.values(divisionScores).sort((a, b) => b.totalScore - a.totalScore);
-        }
+  // ── R17: NO CLASSIFICATION ──────────────────────────────────────────
+  runR17() {
+    if (!this.cash.length) return;
+    const emptyVals = new Set(['','nil','na','n/a','-','null','none','0']);
+    for (const row of this.cash) {
+      const pay = row.payment_amount;
+      if (!pay || pay <= THRESHOLDS.no_classification_amount) continue;
+      const cls = (row.classification || row.major_head || '').trim().toLowerCase();
+      if (!emptyVals.has(cls)) continue;
+      this.flag('R17', row,
+        `Payment ${fmtAmt(pay)} without Major Head classification.`,
+        { payment_amount: pay.toFixed(2) });
+    }
+  }
 
-        // ==================== PDF REPORT GENERATOR ====================
-        function generatePDF(results) {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            const pageW = doc.internal.pageSize.getWidth();
-            const pageH = doc.internal.pageSize.getHeight();
-            const margin = 14;
-            const cw = pageW - 2 * margin;
-            let y = 0;
-            function checkSpace(need) { if (y + need > pageH - 14) { doc.addPage(); y = 18; return true; } return false; }
-            function drawText(text, x, fontSize, color, bold, maxW) {
-                doc.setFontSize(fontSize);
-                doc.setTextColor(...color);
-                doc.setFont(undefined, bold ? 'bold' : 'normal');
-                const lines = doc.splitTextToSize(String(text), maxW || cw);
-                for (let line of lines) { checkSpace(fontSize * 0.4 + 1); doc.text(line, x, y); y += fontSize * 0.38 + 0.6; }
-            }
+  // ── R18: TS BEFORE AA ───────────────────────────────────────────────
+  runR18() {
+    if (!this.capital.length) return;
+    for (const row of this.capital) {
+      const ts = row.ts_date;
+      const aa = row.aa_date;
+      if (!ts || !aa) continue;
+      if (!(ts instanceof Date) || !(aa instanceof Date)) continue;
+      if (ts < aa) {
+        const diff = Math.floor((aa-ts)/86400000);
+        this.flag('R18', row,
+          `TS on ${fmtDate(ts)} but AA only on ${fmtDate(aa)} (${diff}d later). Irregular approval sequence.`,
+          { ts_date: fmtDate(ts), aa_date: fmtDate(aa), diff_days: diff });
+      }
+    }
+  }
 
-            // Header
-            doc.setFillColor(255, 154, 118);
-            doc.rect(0, 0, pageW, 38, 'F');
-            doc.setFontSize(18); doc.setTextColor(255, 255, 255); doc.setFont(undefined, 'bold');
-            doc.text('Red Flag Detection System', pageW / 2, 14, { align: 'center' });
-            doc.setFontSize(10); doc.setFont(undefined, 'normal');
-            doc.text('Comptroller & Auditor General of India — PWD Compliance Audit', pageW / 2, 22, { align: 'center' });
-            doc.text(`Generated: ${new Date().toLocaleString('en-IN', { dateStyle: 'long', timeStyle: 'short' })}`, pageW / 2, 30, { align: 'center' });
-            y = 44;
+  // ── R19: BLOCKING OF FUNDS ──────────────────────────────────────────
+  runR19() {
+    if (!this.deposit.length) return;
+    const today = new Date();
+    const oneYrAgo = new Date(today.getFullYear()-1, today.getMonth(), today.getDate());
+    for (const row of this.deposit) {
+      const bal = row.balance_amount;
+      if (!bal || bal <= THRESHOLDS.blocking_balance) continue;
+      const rd  = row.receipt_date;
+      if (!rd || !(rd instanceof Date)) continue;
+      if (rd >= oneYrAgo) continue;
+      const cumExp = row.cumulative_expenditure;
+      if (cumExp && cumExp > 0) continue;  // some expenditure exists
+      const yrs = ((today-rd)/(365.25*86400000)).toFixed(1);
+      this.flag('R19', row,
+        `Fund ${fmtAmt(bal)} received ${yrs} years ago (${fmtDate(rd)}) with zero expenditure.`,
+        { balance_amount: bal.toFixed(2), years_blocked: yrs });
+    }
+  }
 
-            // Summary box
-            doc.setFillColor(255, 248, 245); doc.setDrawColor(255, 154, 118);
-            doc.roundedRect(margin, y, cw, 16, 2, 2, 'FD');
-            doc.setFontSize(9); doc.setTextColor(60, 60, 60); doc.setFont(undefined, 'normal');
-            const sev = { critical: results.flags.filter(f => f.riskCategory === 'HIGH').length, high: results.flags.filter(f => f.riskCategory === 'MEDIUM').length, medium: results.flags.filter(f => f.riskCategory === 'LOW').length };
-            const meta = `Files: ${results.totalFiles}  |  Capital Works: ${results.documentsAnalyzed.capitalWorks}  |  Deposit Works: ${results.documentsAnalyzed.depositWorks}  |  Agreements: ${results.documentsAnalyzed.agreements}  |  Cash Book: ${results.documentsAnalyzed.cashBook}`;
-            doc.text(meta, pageW / 2, y + 6, { align: 'center' });
-            doc.text(`Total Flags: ${results.flags.length}  |  HIGH Risk: ${sev.critical}  |  MEDIUM Risk: ${sev.high}  |  LOW Risk: ${sev.medium}`, pageW / 2, y + 12, { align: 'center' });
-            y += 22;
+  // ── R20: SHORT RECEIPT ──────────────────────────────────────────────
+  runR20() {
+    if (!this.deposit.length) return;
+    for (const row of this.deposit) {
+      const rcpt = row.cumulative_receipt_amount;
+      const aa   = row.aa_amount;
+      if (!rcpt || !aa || aa<=0) continue;
+      if (rcpt >= aa) continue;
+      const shortfall = aa - rcpt;
+      const pct = (shortfall/aa*100).toFixed(1);
+      this.flag('R20', row,
+        `Only ${fmtAmt(rcpt)} received against AA ${fmtAmt(aa)}. Shortfall ${fmtAmt(shortfall)} (${pct}%).`,
+        { shortfall_amount: shortfall.toFixed(2), shortfall_pct: pct });
+    }
+  }
+}
 
-            // Division Risk Score Table
-            const divScores = calculateDivisionRiskScores(results.flags);
-            if (divScores.length > 0) {
-                checkSpace(20);
-                doc.setFillColor(230, 81, 0); doc.rect(margin, y, cw, 9, 'F');
-                doc.setFontSize(11); doc.setTextColor(255, 255, 255); doc.setFont(undefined, 'bold');
-                doc.text('Division-wise Risk Ranking (Weighted Score: HIGH=50, MEDIUM=30, LOW=20)', margin + 4, y + 6.5);
-                y += 12;
+// ═══════════════════════════════════════════════════════════════════════
+// RENDER RESULTS
+// ═══════════════════════════════════════════════════════════════════════
+function renderResultsPage() {
+  // BEAMS availability
+  const beamsEl = document.getElementById('beamsAvailDisplay');
+  const siloNames = {capital:'Capital Works',deposit:'Deposit Works',cash:'Cash Book',agreement:'Agreement Reg.',uc:'UC Register'};
+  beamsEl.innerHTML = Object.entries(siloNames).map(([k,label])=>{
+    const count = STATE.silos[k].length;
+    const cls = count>0 ? 'beams-ok' : 'beams-miss';
+    return `<span class="beams-tag ${cls}">${count>0?'✅':'❌'} ${label} (${count})</span>`;
+  }).join('');
 
-                doc.setFontSize(9); doc.setTextColor(40, 40, 40); doc.setFont(undefined, 'bold');
-                doc.text('Rank', margin + 2, y);
-                doc.text('Division', margin + 18, y);
-                doc.text('HIGH', margin + 80, y);
-                doc.text('MEDIUM', margin + 100, y);
-                doc.text('LOW', margin + 122, y);
-                doc.text('Total Score', margin + 145, y);
-                y += 5;
+  // Summary cards
+  const counts = { CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0 };
+  STATE.flags.forEach(f=>counts[f.severity]=(counts[f.severity]||0)+1);
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="card c-total"><div class="card-label">Total Flags</div><div class="card-value">${STATE.flags.length}</div><div class="card-sub">${Object.keys(STATE.files).length} files analyzed</div></div>
+    <div class="card c-critical"><div class="card-label">Critical</div><div class="card-value">${counts.CRITICAL||0}</div><div class="card-sub">Weight: 50 pts</div></div>
+    <div class="card c-high"><div class="card-label">High</div><div class="card-value">${counts.HIGH||0}</div><div class="card-sub">Weight: 40 pts</div></div>
+    <div class="card c-medium"><div class="card-label">Medium</div><div class="card-value">${counts.MEDIUM||0}</div><div class="card-sub">Weight: 30 pts</div></div>
+    <div class="card c-low"><div class="card-label">Low</div><div class="card-value">${counts.LOW||0}</div><div class="card-sub">Weight: 20 pts</div></div>
+    <div class="card"><div class="card-label">Capital Works</div><div class="card-value" style="font-size:22px">${STATE.silos.capital.length}</div><div class="card-sub">rows loaded</div></div>
+    <div class="card"><div class="card-label">Deposit Works</div><div class="card-value" style="font-size:22px">${STATE.silos.deposit.length}</div><div class="card-sub">rows loaded</div></div>
+    <div class="card"><div class="card-label">Cash Book</div><div class="card-value" style="font-size:22px">${STATE.silos.cash.length}</div><div class="card-sub">rows loaded</div></div>
+    <div class="card"><div class="card-label">Agreements</div><div class="card-value" style="font-size:22px">${STATE.silos.agreement.length}</div><div class="card-sub">rows loaded</div></div>`;
 
-                doc.setFont(undefined, 'normal');
-                for (let [idx, ds] of divScores.entries()) {
-                    checkSpace(6);
-                    doc.setTextColor(40, 40, 40);
-                    doc.text(String(idx + 1), margin + 2, y);
-                    doc.text(ds.division.substring(0, 35), margin + 18, y);
-                    doc.setTextColor(198, 40, 40); doc.text(String(ds.high), margin + 80, y);
-                    doc.setTextColor(230, 81, 0); doc.text(String(ds.medium), margin + 100, y);
-                    doc.setTextColor(46, 125, 50); doc.text(String(ds.low), margin + 122, y);
-                    doc.setTextColor(40, 40, 40); doc.setFont(undefined, 'bold');
-                    doc.text(String(ds.totalScore), margin + 145, y);
-                    doc.setFont(undefined, 'normal');
-                    y += 5.5;
-                }
-                y += 8;
-            }
+  // Populate filter dropdowns
+  const ruleFilter = document.getElementById('ruleFilter');
+  const divFilter  = document.getElementById('divFilter');
+  const rules = [...new Set(STATE.flags.map(f=>f.rule_id))].sort();
+  const divs  = [...new Set(STATE.flags.map(f=>f.division))].sort();
+  ruleFilter.innerHTML = '<option value="">All Rules</option>' + rules.map(r=>{
+    const rc = RULES_CATALOG.find(x=>x.id===r);
+    return `<option value="${r}">${r}: ${rc?rc.code:''}</option>`;
+  }).join('');
+  divFilter.innerHTML = '<option value="">All Divisions</option>' + divs.map(d=>`<option value="${d}">${d}</option>`).join('');
 
-            // Flags
-            const byType = {};
-            results.flags.forEach(f => { if (!byType[f.code]) byType[f.code] = []; byType[f.code].push(f); });
-            const sevColors = { HIGH: [211, 47, 47], MEDIUM: [230, 81, 0], LOW: [245, 127, 23] };
+  applyFilters();
+}
 
-            for (let [code, flist] of Object.entries(byType)) {
-                const rule = RULES.find(r => r.code === code);
-                const title = rule ? `${rule.id}: ${rule.title}` : code;
-                checkSpace(12);
-                doc.setFillColor(255, 235, 230); doc.setDrawColor(211, 47, 47);
-                doc.roundedRect(margin, y, cw, 8, 1.5, 1.5, 'FD');
-                doc.setFontSize(10); doc.setTextColor(160, 20, 20); doc.setFont(undefined, 'bold');
-                doc.text(`${title} (${flist.length})`, margin + 3, y + 5.5);
-                y += 11;
+function applyFilters() {
+  const q    = (document.getElementById('searchBox').value||'').toLowerCase();
+  const sev  = document.getElementById('sevFilter').value;
+  const rule = document.getElementById('ruleFilter').value;
+  const div  = document.getElementById('divFilter').value;
 
-                for (let [idx, flag] of flist.entries()) {
-                    const color = sevColors[flag.riskCategory] || [100, 100, 100];
-                    const workH = doc.splitTextToSize(flag.work, cw - 24).length * 4 + doc.splitTextToSize(flag.remark, cw - 24).length * 3.8 + doc.splitTextToSize(flag.evidence, cw - 24).length * 3.8 + 14;
-                    checkSpace(workH + 3);
-                    doc.setFillColor(252, 252, 252); doc.setDrawColor(220, 220, 220);
-                    doc.roundedRect(margin + 1, y, cw - 2, workH, 1.5, 1.5, 'FD');
-                    doc.setFillColor(...color); doc.rect(margin + 1, y, 2.5, workH, 'F');
-                    doc.setFillColor(...color); doc.circle(margin + 9, y + 4.5, 3, 'F');
-                    doc.setFontSize(7); doc.setTextColor(255, 255, 255); doc.setFont(undefined, 'bold');
-                    doc.text(String(idx + 1), margin + 9, y + 6, { align: 'center' });
-                    doc.setFontSize(7); doc.setTextColor(...color); doc.setFont(undefined, 'bold');
-                    doc.text(flag.riskCategory, margin + cw - 4, y + 5, { align: 'right' });
+  const filtered = STATE.flags.filter(f => {
+    if (sev  && f.severity !== sev) return false;
+    if (rule && f.rule_id  !== rule) return false;
+    if (div  && f.division !== div) return false;
+    if (q) {
+      const hay = `${f.work_name} ${f.description} ${f.rule_id} ${f.rule_code} ${f.division} ${f.source_file}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
 
-                    let cy = y + 4;
-                    const tx = margin + 15;
-                    const tw = cw - 18;
-                    doc.setFontSize(9); doc.setFont(undefined, 'bold'); doc.setTextColor(30, 30, 30);
-                    for (let line of doc.splitTextToSize(flag.work, tw - 12)) { doc.text(line, tx, cy); cy += 3.8; }
-                    cy += 1;
-                    doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.setTextColor(80, 80, 80);
-                    for (let line of doc.splitTextToSize(`Details: ${flag.details}`, tw)) { doc.text(line, tx, cy); cy += 3.6; }
-                    doc.setTextColor(...color);
-                    for (let line of doc.splitTextToSize(`Issue: ${flag.remark}`, tw)) { doc.text(line, tx, cy); cy += 3.6; }
-                    doc.setTextColor(60, 60, 60);
-                    for (let line of doc.splitTextToSize(`Evidence: ${flag.evidence}`, tw)) { doc.text(line, tx, cy); cy += 3.6; }
-                    y += workH + 2;
-                }
-                y += 3;
-            }
+  document.getElementById('filterCount').textContent = `${filtered.length} of ${STATE.flags.length} flags`;
+  renderFlagList(filtered);
+}
 
-            const totalPages = doc.internal.getNumberOfPages();
-            for (let i = 1; i <= totalPages; i++) {
-                doc.setPage(i);
-                doc.setFillColor(245, 245, 245); doc.rect(0, pageH - 10, pageW, 10, 'F');
-                doc.setFontSize(7); doc.setTextColor(120, 120, 120); doc.setFont(undefined, 'normal');
-                doc.text('CAG of India — PWD Red Flag Detection System | Confidential', margin, pageH - 4);
-                doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 4, { align: 'right' });
-            }
-            doc.save(`RedFlag_Report_${new Date().toISOString().split('T')[0]}.pdf`);
-        }
+function renderFlagList(flags) {
+  const container = document.getElementById('flagList');
+  if (!flags.length) {
+    container.innerHTML = `<div class="empty-state"><div class="em-icon">${STATE.flags.length?'🔍':'✅'}</div><h3>${STATE.flags.length?'No flags match current filters.':'No red flags detected in uploaded documents.'}</h3></div>`;
+    return;
+  }
 
-        // ==================== UI COMPONENTS ====================
-        function LoginPage({ onLogin }) {
-            const [u, setU] = useState(''); const [p, setP] = useState(''); const [err, setErr] = useState('');
-            const handle = () => { if (u === 'admin' && p === 'admin') onLogin(); else setErr('Invalid credentials'); };
-            return (
-                <div className="login-wrapper">
-                    <div className="login-card">
-                        <div className="login-title">Red Flag Detection System</div>
-                        <div className="login-subtitle">Sign in to access the dashboard</div>
-                        {err && <div className="login-error">{err}</div>}
-                        <div className="login-field"><label>Username</label><input value={u} onChange={e => { setU(e.target.value); setErr(''); }} onKeyDown={e => e.key === 'Enter' && handle()} autoFocus /></div>
-                        <div className="login-field"><label>Password</label><input type="password" value={p} onChange={e => { setP(e.target.value); setErr(''); }} onKeyDown={e => e.key === 'Enter' && handle()} /></div>
-                        <button className="login-btn" onClick={handle}>Sign In</button>
-                    </div>
-                </div>
-            );
-        }
+  // Group by rule
+  const byRule = {};
+  for (const f of flags) {
+    if (!byRule[f.rule_id]) byRule[f.rule_id] = [];
+    byRule[f.rule_id].push(f);
+  }
+  const sortedRuleIds = Object.keys(byRule).sort();
 
-        function DivisionRiskTable({ flags }) {
-            const divScores = useMemo(() => calculateDivisionRiskScores(flags), [flags]);
-            const maxScore = Math.max(...divScores.map(d => d.totalScore), 1);
+  container.innerHTML = sortedRuleIds.map(ruleId => {
+    const list = byRule[ruleId];
+    const r    = RULES_CATALOG.find(x=>x.id===ruleId);
+    const sectionId = 'sec_'+ruleId;
+    const bodyId    = 'body_'+ruleId;
+    return `
+    <div class="rule-section">
+      <div class="rule-header" onclick="toggleSection('${bodyId}','${sectionId}')">
+        <div class="rule-header-left">
+          <span class="rule-id-badge">${ruleId}</span>
+          <span class="rule-title-text">${r?r.title:ruleId}</span>
+        </div>
+        <div class="rule-header-right">
+          <span class="rule-count-badge">${list.length} flag${list.length>1?'s':''}</span>
+          <span class="rule-toggle" id="${sectionId}">▼</span>
+        </div>
+      </div>
+      <div class="rule-body open" id="${bodyId}">
+        ${list.map(f=>renderFlagCard(f)).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
 
-            return (
-                <div className="risk-score-section">
-                    <div className="risk-score-title">Division-wise Risk Ranking (Weighted Scoring)</div>
-                    <div className="report-subtitle">
-                        <strong>Scoring Weights:</strong> HIGH Risk = 50 points &nbsp;|&nbsp; MEDIUM Risk = 30 points &nbsp;|&nbsp; LOW Risk = 20 points
-                    </div>
-                    <div className="report-subtitle">
-                        Divisions ranked in <strong>decreasing order of risk factor</strong> based on weighted average
-                    </div>
-                    <table className="division-rank-table">
-                        <thead>
-                            <tr>
-                                <th>Rank</th>
-                                <th>Division</th>
-                                <th>HIGH (50)</th>
-                                <th>MEDIUM (30)</th>
-                                <th>LOW (20)</th>
-                                <th>Total Score</th>
-                                <th>Risk Level</th>
-                                <th>Score Bar</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {divScores.map((ds, idx) => {
-                                const pct = (ds.totalScore / maxScore) * 100;
-                                const riskLevel = ds.totalScore >= 200 ? 'HIGH' : ds.totalScore >= 100 ? 'MEDIUM' : 'LOW';
-                                const barClass = riskLevel === 'HIGH' ? 'high' : riskLevel === 'MEDIUM' ? 'medium' : 'low';
-                                return (
-                                    <tr key={ds.division}>
-                                        <td><strong>#{idx + 1}</strong></td>
-                                        <td>{ds.division}</td>
-                                        <td style={{color:'#c62828',fontWeight:700}}>{ds.high}</td>
-                                        <td style={{color:'#e65100',fontWeight:700}}>{ds.medium}</td>
-                                        <td style={{color:'#2e7d32',fontWeight:700}}>{ds.low}</td>
-                                        <td><strong>{ds.totalScore}</strong></td>
-                                        <td><span className={`severity-badge ${riskLevel.toLowerCase()}`}>{riskLevel}</span></td>
-                                        <td style={{width:'200px'}}>
-                                            <div className="risk-bar-container">
-                                                <div className={`risk-bar ${barClass}`} style={{width:`${pct}%`}}></div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            );
-        }
+function toggleSection(bodyId, toggleId) {
+  const body = document.getElementById(bodyId);
+  const tog  = document.getElementById(toggleId);
+  body.classList.toggle('open');
+  tog.classList.toggle('open');
+}
 
-        function App() {
-            const [auth, setAuth] = useState(false);
-            const [files, setFiles] = useState({});
-            const [processing, setProcessing] = useState(false);
-            const [results, setResults] = useState(null);
-            const [error, setError] = useState(null);
-            const [dragging, setDragging] = useState(false);
-            const [search, setSearch] = useState('');
-            const [sevFilter, setSevFilter] = useState('');
-            const [activeTab, setActiveTab] = useState('flags');
-            const fileInputRef = useRef(null);
+function renderFlagCard(f) {
+  const det = Object.entries(f.details||{}).filter(([k])=>!['remark'].includes(k)).map(([k,v])=>`<span style="margin-right:12px"><strong>${k.replace(/_/g,' ')}:</strong> ${v}</span>`).join('');
+  const xvClass = f.beams_xv.includes('CONFIRMED')?'xv-confirmed':f.beams_xv.includes('MISSING')?'xv-missing':'xv-na';
+  return `
+  <div class="flag-card sev-${f.severity}">
+    <div class="flag-head">
+      <div class="flag-wname">${esc(f.work_name)}</div>
+      <span class="sev-badge ${f.severity}">${f.severity} (${RISK_WEIGHTS[f.severity]||0}pts)</span>
+    </div>
+    <div class="flag-rows">
+      <div class="flag-row"><span class="flag-row-label">Work ID:</span><span class="flag-row-val">${esc(f.work_id)}</span></div>
+      <div class="flag-row"><span class="flag-row-label">Division:</span><span class="flag-row-val">${esc(f.division)}</span></div>
+      <div class="flag-row"><span class="flag-row-label">Source File:</span><span class="flag-row-val">${esc(f.source_file)}</span></div>
+      <div class="flag-row"><span class="flag-row-label">Description:</span><span class="flag-row-val">${esc(f.description)}</span></div>
+      ${det ? `<div class="flag-row"><span class="flag-row-label">Details:</span><span class="flag-row-val" style="font-size:12px">${det}</span></div>` : ''}
+    </div>
+    <span class="xv-status ${xvClass}">${esc(f.beams_xv)}</span>
+  </div>`;
+}
 
-            if (!auth) return <LoginPage onLogin={() => setAuth(true)} />;
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
-            const handleFileSelect = (selectedFiles) => {
-                setError(null);
-                const nf = { ...files };
-                for (let f of selectedFiles) {
-                    const ext = f.name.split('.').pop().toLowerCase();
-                    if (['pdf','xlsx','xls','docx'].includes(ext)) nf[f.name] = f;
-                    else setError(`Unsupported: ${f.name}. Only PDF, Excel, DOCX allowed.`);
-                }
-                setFiles(nf);
-            };
-            const handleDrop = (e) => { e.preventDefault(); setDragging(false); handleFileSelect(e.dataTransfer.files); };
-            const removeFile = (name) => { const nf = { ...files }; delete nf[name]; setFiles(nf); };
+// ═══════════════════════════════════════════════════════════════════════
+// DIVISION RANKING PAGE
+// ═══════════════════════════════════════════════════════════════════════
+function renderDivisionPage() {
+  const divMap = {};
+  for (const f of STATE.flags) {
+    const d = f.division || 'Unknown';
+    if (!divMap[d]) divMap[d] = { division:d, CRITICAL:0, HIGH:0, MEDIUM:0, LOW:0, total:0, score:0, rules:new Set(), works:new Set() };
+    divMap[d][f.severity] = (divMap[d][f.severity]||0) + 1;
+    divMap[d].total++;
+    divMap[d].score += RISK_WEIGHTS[f.severity]||0;
+    divMap[d].rules.add(f.rule_id);
+    divMap[d].works.add(f.work_id);
+  }
+  const sorted = Object.values(divMap).sort((a,b)=>b.score-a.score);
+  const maxScore = sorted.length ? sorted[0].score : 1;
 
-            const runAnalysis = async () => {
-                setProcessing(true); setError(null); setResults(null);
-                try { const res = await detectAllRedFlags(files); setResults(res); }
-                catch(err) { console.error(err); setError(`Analysis failed: ${err.message}`); }
-                finally { setProcessing(false); }
-            };
+  if (!sorted.length) {
+    document.getElementById('divisionTable').innerHTML = '<div class="empty-state"><div class="em-icon">📊</div><h3>No data yet. Run analysis first.</h3></div>';
+    return;
+  }
 
-            const filteredFlags = useMemo(() => {
-                if (!results) return [];
-                const q = search.toLowerCase();
-                return results.flags.filter(f => {
-                    const matchesSearch = !q || [f.work, f.details, f.remark, f.evidence, f.code, f.ruleId].some(s => String(s).toLowerCase().includes(q));
-                    const matchesSev = !sevFilter || f.riskCategory === sevFilter;
-                    return matchesSearch && matchesSev;
-                });
-            }, [results, search, sevFilter]);
+  document.getElementById('divisionTable').innerHTML = `
+  <div style="overflow-x:auto">
+  <table class="rank-table">
+    <thead><tr>
+      <th>Rank</th><th>Division</th>
+      <th style="color:#ef9a9a">Critical</th>
+      <th style="color:#ffcc80">High</th>
+      <th style="color:#fff9c4">Medium</th>
+      <th style="color:#c8e6c9">Low</th>
+      <th>Total Flags</th><th>Risk Score</th><th>Risk Level</th><th>Score Bar</th>
+      <th>Rules Triggered</th><th>Works Affected</th>
+    </tr></thead>
+    <tbody>
+    ${sorted.map((d,i)=>{
+      const pct = (d.score/maxScore*100).toFixed(0);
+      const level = d.score>=200?'CRITICAL':d.score>=100?'HIGH':d.score>=50?'MEDIUM':'LOW';
+      const barCls = {CRITICAL:'rb-high',HIGH:'rb-high',MEDIUM:'rb-medium',LOW:'rb-low'}[level];
+      return `<tr>
+        <td><span class="rank-num">#${i+1}</span></td>
+        <td>${esc(d.division)}</td>
+        <td style="color:var(--critical);font-weight:700">${d.CRITICAL||0}</td>
+        <td style="color:var(--high);font-weight:700">${d.HIGH||0}</td>
+        <td style="color:var(--medium);font-weight:700">${d.MEDIUM||0}</td>
+        <td style="color:var(--low);font-weight:700">${d.LOW||0}</td>
+        <td><strong>${d.total}</strong></td>
+        <td><strong>${d.score}</strong></td>
+        <td><span class="sev-badge ${level}">${level}</span></td>
+        <td><div class="risk-bar-wrap"><div class="risk-bar-fill ${barCls}" style="width:${pct}%"></div></div></td>
+        <td>${d.rules.size}</td>
+        <td>${d.works.size}</td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>
+  </div>`;
+}
 
-            const flagsByType = useMemo(() => {
-                const g = {};
-                filteredFlags.forEach(f => { if (!g[f.code]) g[f.code] = []; g[f.code].push(f); });
-                return g;
-            }, [filteredFlags]);
+// ═══════════════════════════════════════════════════════════════════════
+// RULES REFERENCE TABLE
+// ═══════════════════════════════════════════════════════════════════════
+function renderRulesTable() {
+  document.getElementById('rulesTable').innerHTML = `
+  <div style="overflow-x:auto">
+  <table class="ref-table">
+    <thead><tr>
+      <th>Rule ID</th><th>Code</th><th>Title</th><th>Severity</th><th>Weight</th><th>Source</th><th>Key Parameter</th>
+    </tr></thead>
+    <tbody>
+    ${RULES_CATALOG.map(r=>`
+    <tr>
+      <td><strong>${r.id}</strong></td>
+      <td style="font-family:monospace;font-size:11px">${r.code}</td>
+      <td>${r.title}</td>
+      <td><span class="risk-cat ${r.severity}">${r.severity}</span></td>
+      <td><strong>${RISK_WEIGHTS[r.severity]||0}</strong></td>
+      <td style="font-size:11px;color:var(--text3)">${r.source}</td>
+      <td style="font-size:11px;color:var(--text3)">${r.param}</td>
+    </tr>`).join('')}
+    </tbody>
+  </table>
+  </div>`;
+}
 
-            const fileCount = Object.keys(files).length;
-            const sevCounts = results ? {
-                high: results.flags.filter(f => f.riskCategory === 'HIGH').length,
-                medium: results.flags.filter(f => f.riskCategory === 'MEDIUM').length,
-                low: results.flags.filter(f => f.riskCategory === 'LOW').length
-            } : { high: 0, medium: 0, low: 0 };
+// ═══════════════════════════════════════════════════════════════════════
+// CSV EXPORT
+// ═══════════════════════════════════════════════════════════════════════
+function downloadCSV() {
+  if (!STATE.flags.length) { alert('No flags to export.'); return; }
+  const cols = ['S_No','Rule_ID','Rule_Code','Title','Severity','Risk_Score','Division','Work_ID','Work_Name','Source_File','Description','BEAMS_XV_Status',
+    'AA_Amount','AA_Date','Tech_Sanction_Cost','TS_Date','Contract_Cost','Cumulative_Expenditure','Work_Order_Date','Stipulated_Completion_Date',
+    'RA_Bill_Payment_Date','Bill_Amount','Balance_Amount','Centage_Amount','Cumulative_Receipt_Amount','Receipt_Date',
+    'Tender_Cost','Estimated_Cost','Percentage_Below','Contractor_Name','Payment_Amount','Voucher_No','Voucher_Date',
+    'Payment_Mode','Classification','Remark','Extra_Details','Timestamp'];
+  const rows = STATE.flags.map((f,i) => {
+    const r = f.raw || {};
+    const det = Object.entries(f.details||{}).map(([k,v])=>`${k}=${v}`).join(' | ');
+    return [
+      i+1, f.rule_id, f.rule_code, f.title, f.severity, RISK_WEIGHTS[f.severity]||0,
+      f.division, f.work_id, f.work_name, f.source_file, f.description, f.beams_xv,
+      fmtAmt(r.aa_amount), fmtDate(r.aa_date), fmtAmt(r.tech_sanction_cost), fmtDate(r.ts_date),
+      fmtAmt(r.contract_cost), fmtAmt(r.cumulative_expenditure), fmtDate(r.work_order_date),
+      fmtDate(r.stipulated_completion_date), fmtDate(r.ra_bill_payment_date), fmtAmt(r.bill_amount),
+      fmtAmt(r.balance_amount), fmtAmt(r.centage_amount), fmtAmt(r.cumulative_receipt_amount), fmtDate(r.receipt_date),
+      fmtAmt(r.tender_cost), fmtAmt(r.estimated_cost), r.percentage_below??'N/A', r.contractor_name||'N/A',
+      fmtAmt(r.payment_amount), r.voucher_no||'N/A', fmtDate(r.voucher_date),
+      r.payment_mode||'N/A', r.classification||'N/A', (r.remark||'').slice(0,300), det,
+      new Date().toISOString().replace('T',' ').slice(0,19)
+    ].map(v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"');
+  });
+  const csv = [cols.map(c=>'"'+c+'"').join(','), ...rows.map(r=>r.join(','))].join('\r\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `RedFlags_Master_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
 
-            return (
-                <div className="container">
-                    <div className="header">
-                        <h1>Red Flag Detection System</h1>
-                        <p>All 20 PWD Audit Rules with Risk Categorization &middot; Division-wise Weighted Scoring &middot; CAG Compliance</p>
-                    </div>
-                    <div className="main-content">
-                        {error && <div className="error">{error}</div>}
+// ═══════════════════════════════════════════════════════════════════════
+// PDF REPORT
+// ═══════════════════════════════════════════════════════════════════════
+function downloadPDFReport() {
+  if (!STATE.flags.length) { alert('No flags to export.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const PW = doc.internal.pageSize.getWidth();
+  const PH = doc.internal.pageSize.getHeight();
+  const M  = 14;
+  const CW = PW - 2*M;
+  let y = 0;
+  const NC = () => { if (y > PH-18) { doc.addPage(); y=18; } };
 
-                        {!processing && !results && (
-                            <>
-                                <div className={`upload-section ${dragging ? 'dragging' : ''}`} onClick={() => fileInputRef.current.click()} onDrop={handleDrop} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}>
-                                    <span className="upload-label">Click to upload or drag & drop files</span>
-                                    <span className="upload-hint">Capital Works Report · Deposit Works UC · Agreement Register · Cash Book Form 10 (PDF/Excel/DOCX)</span>
-                                    <input ref={fileInputRef} type="file" multiple accept=".pdf,.xlsx,.xls,.docx" onChange={e => handleFileSelect(e.target.files)} />
-                                </div>
-                                {fileCount > 0 && (
-                                    <div className="file-list">
-                                        {Object.entries(files).map(([name]) => (
-                                            <div key={name} className="file-item">
-                                                <div><span className="file-name">{name}</span><span className="file-type">{name.split('.').pop().toUpperCase()}</span></div>
-                                                <button className="remove-btn" onClick={() => removeFile(name)}>Remove</button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                <button className="analyze-btn" disabled={fileCount === 0} onClick={runAnalysis}>Analyze Documents</button>
-                            </>
-                        )}
+  // Header
+  doc.setFillColor(26,26,46);
+  doc.rect(0,0,PW,36,'F');
+  doc.setFontSize(16); doc.setTextColor(255,255,255); doc.setFont(undefined,'bold');
+  doc.text('PWD Red Flag Detection System v3.2', PW/2, 13, {align:'center'});
+  doc.setFontSize(9); doc.setFont(undefined,'normal');
+  doc.text('Office of the Accountant General (Audit-II), Maharashtra, Nagpur', PW/2, 21, {align:'center'});
+  doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, PW/2, 29, {align:'center'});
+  y = 42;
 
-                        {processing && <div className="processing"><div className="spinner"></div><div>Analyzing documents for all 20 red flags with risk categorization...</div></div>}
+  // Summary
+  doc.setFillColor(255,244,239);
+  doc.setDrawColor(232,84,26);
+  doc.roundedRect(M,y,CW,14,2,2,'FD');
+  doc.setFontSize(8); doc.setTextColor(60,60,60); doc.setFont(undefined,'normal');
+  const counts={CRITICAL:0,HIGH:0,MEDIUM:0,LOW:0};
+  STATE.flags.forEach(f=>counts[f.severity]=(counts[f.severity]||0)+1);
+  doc.text(`Total Flags: ${STATE.flags.length}  |  CRITICAL: ${counts.CRITICAL||0}  |  HIGH: ${counts.HIGH||0}  |  MEDIUM: ${counts.MEDIUM||0}  |  LOW: ${counts.LOW||0}`, PW/2, y+6, {align:'center'});
+  doc.text(`Capital: ${STATE.silos.capital.length}  |  Deposit: ${STATE.silos.deposit.length}  |  Cash: ${STATE.silos.cash.length}  |  Agreement: ${STATE.silos.agreement.length}  |  UC: ${STATE.silos.uc.length}`, PW/2, y+11, {align:'center'});
+  y += 20;
 
-                        {results && (
-                            <div className="results">
-                                <div className="summary">
-                                    <div className="summary-title">Analysis Summary</div>
-                                    <div className="summary-stats">
-                                        <div className="stat-card"><div className="stat-label">Files</div><div className="stat-value">{results.totalFiles}</div></div>
-                                        <div className="stat-card critical"><div className="stat-label">HIGH Risk (50)</div><div className="stat-value" style={{color:'#c62828'}}>{sevCounts.high}</div></div>
-                                        <div className="stat-card high"><div className="stat-label">MEDIUM Risk (30)</div><div className="stat-value" style={{color:'#e65100'}}>{sevCounts.medium}</div></div>
-                                        <div className="stat-card low"><div className="stat-label">LOW Risk (20)</div><div className="stat-value" style={{color:'#2e7d32'}}>{sevCounts.low}</div></div>
-                                        <div className="stat-card"><div className="stat-label">Capital Works</div><div className="stat-value">{results.documentsAnalyzed.capitalWorks}</div></div>
-                                        <div className="stat-card"><div className="stat-label">Deposit Works</div><div className="stat-value">{results.documentsAnalyzed.depositWorks}</div></div>
-                                        <div className="stat-card"><div className="stat-label">Agreements</div><div className="stat-value">{results.documentsAnalyzed.agreements}</div></div>
-                                        <div className="stat-card"><div className="stat-label">Cash Book</div><div className="stat-value">{results.documentsAnalyzed.cashBook}</div></div>
-                                    </div>
-                                </div>
+  // Division ranking
+  const divMap={};
+  for(const f of STATE.flags){
+    const d=f.division||'Unknown';
+    if(!divMap[d]) divMap[d]={division:d,total:0,score:0,CRITICAL:0,HIGH:0,MEDIUM:0,LOW:0};
+    divMap[d].total++; divMap[d].score+=RISK_WEIGHTS[f.severity]||0;
+    divMap[d][f.severity]=(divMap[d][f.severity]||0)+1;
+  }
+  const divSorted=Object.values(divMap).sort((a,b)=>b.score-a.score);
+  if(divSorted.length){
+    NC();
+    doc.setFillColor(26,26,46); doc.rect(M,y,CW,8,'F');
+    doc.setFontSize(10); doc.setTextColor(255,255,255); doc.setFont(undefined,'bold');
+    doc.text('Division-wise Risk Ranking', M+3, y+5.5);
+    y += 10;
+    doc.setFontSize(8); doc.setTextColor(40,40,40); doc.setFont(undefined,'bold');
+    ['Rank','Division','Critical','High','Medium','Low','Score'].forEach((h,i)=>{
+      doc.text(h, M+[2,18,90,108,122,136,152][i], y);
+    });
+    y += 4;
+    doc.setFont(undefined,'normal');
+    divSorted.forEach((d,idx)=>{
+      NC();
+      doc.setTextColor(232,84,26); doc.text('#'+(idx+1), M+2, y);
+      doc.setTextColor(40,40,40);
+      doc.text(d.division.slice(0,28), M+18, y);
+      doc.setTextColor(183,28,28); doc.text(String(d.CRITICAL||0), M+90, y);
+      doc.setTextColor(191,54,12); doc.text(String(d.HIGH||0), M+108, y);
+      doc.setTextColor(230,81,0); doc.text(String(d.MEDIUM||0), M+122, y);
+      doc.setTextColor(46,125,50); doc.text(String(d.LOW||0), M+136, y);
+      doc.setTextColor(40,40,40); doc.setFont(undefined,'bold'); doc.text(String(d.score), M+152, y); doc.setFont(undefined,'normal');
+      y += 5;
+    });
+    y += 8;
+  }
 
-                                <div className="rule-ref">
-                                    <table>
-                                        <thead><tr><th>Rule</th><th>Title</th><th>Risk Category</th><th>Weight</th><th>Source</th><th>Key Parameter</th></tr></thead>
-                                        <tbody>
-                                            {RULES.map(r => (
-                                                <tr key={r.id}>
-                                                    <td><strong>{r.id}</strong></td>
-                                                    <td>{r.title}</td>
-                                                    <td><span className={`rule-sev ${r.riskCategory.toLowerCase()}-risk`}>{r.riskCategory}</span></td>
-                                                    <td>{r.weight}</td>
-                                                    <td>{r.source}</td>
-                                                    <td>{r.param}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+  // Flags by rule
+  const byRule={};
+  STATE.flags.forEach(f=>{ if(!byRule[f.rule_id]) byRule[f.rule_id]=[]; byRule[f.rule_id].push(f); });
+  const sevColor={CRITICAL:[183,28,28],HIGH:[191,54,12],MEDIUM:[230,81,0],LOW:[46,125,50]};
+  for(const [ruleId,list] of Object.entries(byRule).sort()){
+    NC();
+    const r=RULES_CATALOG.find(x=>x.id===ruleId);
+    doc.setFillColor(232,84,26); doc.rect(M,y,CW,7,'F');
+    doc.setFontSize(9.5); doc.setTextColor(255,255,255); doc.setFont(undefined,'bold');
+    doc.text(`${ruleId}: ${r?r.title:''} (${list.length})`, M+3, y+5);
+    y += 9;
+    list.forEach((f,idx)=>{
+      const col=sevColor[f.severity]||[100,100,100];
+      const lines1=doc.splitTextToSize(f.work_name,CW-20);
+      const lines2=doc.splitTextToSize(f.description,CW-20);
+      const h=lines1.length*3.8+lines2.length*3.5+12;
+      NC();
+      doc.setFillColor(252,252,252); doc.setDrawColor(220,220,220);
+      doc.roundedRect(M+1,y,CW-2,h,1.5,1.5,'FD');
+      doc.setFillColor(...col); doc.rect(M+1,y,2.5,h,'F');
+      doc.setFillColor(...col); doc.circle(M+8,y+4.5,2.5,'F');
+      doc.setFontSize(7); doc.setTextColor(255,255,255); doc.setFont(undefined,'bold');
+      doc.text(String(idx+1),M+8,y+6,{align:'center'});
+      doc.setFontSize(7.5); doc.setTextColor(...col); doc.setFont(undefined,'bold');
+      doc.text(f.severity,M+CW-3,y+5,{align:'right'});
+      let cy=y+4; const tx=M+13; const tw=CW-16;
+      doc.setFontSize(8.5); doc.setTextColor(30,30,30); doc.setFont(undefined,'bold');
+      lines1.forEach(l=>{ doc.text(l,tx,cy); cy+=3.8; });
+      doc.setFontSize(7.5); doc.setTextColor(80,80,80); doc.setFont(undefined,'normal');
+      doc.text(`Div: ${f.division}  |  Work ID: ${f.work_id}  |  File: ${f.source_file}`,tx,cy); cy+=3.5;
+      doc.setTextColor(...col);
+      lines2.forEach(l=>{ doc.text(l,tx,cy); cy+=3.5; });
+      y+=h+2;
+    });
+    y+=4;
+  }
 
-                                {results.flags.length > 0 && <DivisionRiskTable flags={results.flags} />}
+  // Page numbers
+  const tp=doc.internal.getNumberOfPages();
+  for(let i=1;i<=tp;i++){
+    doc.setPage(i);
+    doc.setFillColor(245,245,245); doc.rect(0,PH-9,PW,9,'F');
+    doc.setFontSize(7); doc.setTextColor(120,120,120); doc.setFont(undefined,'normal');
+    doc.text('CAG of India — PWD Red Flag Detection System v3.2 | Confidential', M, PH-4);
+    doc.text(`Page ${i} of ${tp}`, PW-M, PH-4, {align:'right'});
+  }
+  doc.save(`RedFlags_Report_${new Date().toISOString().slice(0,10)}.pdf`);
+}
 
-                                <div className="tabs">
-                                    <button className={`tab ${activeTab === 'flags' ? 'active' : ''}`} onClick={() => setActiveTab('flags')}>Red Flag Findings ({filteredFlags.length})</button>
-                                    <button className={`tab ${activeTab === 'report' ? 'active' : ''}`} onClick={() => setActiveTab('report')}>Audit Report</button>
-                                </div>
-
-                                {activeTab === 'flags' && (
-                                    <>
-                                        <div className="search-filter-section">
-                                            <input type="text" className="search-bar" placeholder="Search by work name, rule code, issue, evidence..." value={search} onChange={e => setSearch(e.target.value)} />
-                                            <div className="filters-grid">
-                                                <select className="filter-select" value={sevFilter} onChange={e => setSevFilter(e.target.value)}>
-                                                    <option value="">All Risk Categories</option>
-                                                    <option value="HIGH">HIGH Risk (Weight: 50)</option>
-                                                    <option value="MEDIUM">MEDIUM Risk (Weight: 30)</option>
-                                                    <option value="LOW">LOW Risk (Weight: 20)</option>
-                                                </select>
-                                            </div>
-                                        </div>
-
-                                        {filteredFlags.length === 0 ? (
-                                            <div className="no-flags">
-                                                <div className="no-flags-icon">✓</div>
-                                                <div>{results.flags.length === 0 ? 'No red flags detected in the analyzed documents.' : 'No red flags match the current filters.'}</div>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {Object.entries(flagsByType).map(([code, flist]) => {
-                                                    const rule = RULES.find(r => r.code === code);
-                                                    const title = rule ? `${rule.id}: ${rule.title}` : code;
-                                                    return (
-                                                        <div key={code} className="flag-section">
-                                                            <div className="flag-header">
-                                                                <span>{title}</span>
-                                                                <span className="severity-badge" style={{background:'rgba(255,255,255,0.2)',color:'#fff'}}>{flist.length}</span>
-                                                            </div>
-                                                            <div className="flag-content">
-                                                                {flist.map((flag, idx) => (
-                                                                    <div key={idx} className={`flag-item severity-${flag.riskCategory.toLowerCase()}`}>
-                                                                        <div className="flag-title">
-                                                                            {flag.work}
-                                                                            <span className={`severity-badge ${flag.riskCategory.toLowerCase()}`}>{flag.riskCategory} (Weight: {RISK_WEIGHTS[flag.riskCategory]})</span>
-                                                                        </div>
-                                                                        <div className="flag-detail"><strong>Details:</strong> {flag.details}</div>
-                                                                        <div className="flag-detail"><strong>Issue:</strong> {flag.remark}</div>
-                                                                        <div className="flag-detail"><strong>Evidence:</strong> {flag.evidence}</div>
-                                                                        {flag.division && <div className="flag-detail"><strong>Division:</strong> {flag.division}</div>}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </>
-                                        )}
-                                    </>
-                                )}
-
-                                {activeTab === 'report' && (
-                                    <div className="report-section">
-                                        <div className="report-title">Consolidated Audit Report</div>
-                                        <div className="report-subtitle">
-                                            This report consolidates all detected red flags risk-wise and groups them division-wise with weighted risk scores.
-                                        </div>
-                                        <DivisionRiskTable flags={results.flags} />
-                                        <div style={{marginTop:'20px',background:'#fff',borderRadius:'8px',padding:'20px'}}>
-                                            <h3 style={{marginBottom:'12px',fontSize:'16px'}}>Risk-wise Flag Distribution</h3>
-                                            <table className="division-rank-table">
-                                                <thead>
-                                                    <tr><th>Risk Category</th><th>Weight</th><th>Count</th><th>Total Weighted Score</th><th>% of Total</th></tr>
-                                                </thead>
-                                                <tbody>
-                                                    <tr>
-                                                        <td><span className="severity-badge critical">HIGH</span></td>
-                                                        <td>50</td>
-                                                        <td>{sevCounts.high}</td>
-                                                        <td><strong>{sevCounts.high * 50}</strong></td>
-                                                        <td>{results.flags.length > 0 ? ((sevCounts.high * 50) / (sevCounts.high * 50 + sevCounts.medium * 30 + sevCounts.low * 20) * 100).toFixed(1) : 0}%</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><span className="severity-badge high">MEDIUM</span></td>
-                                                        <td>30</td>
-                                                        <td>{sevCounts.medium}</td>
-                                                        <td><strong>{sevCounts.medium * 30}</strong></td>
-                                                        <td>{results.flags.length > 0 ? ((sevCounts.medium * 30) / (sevCounts.high * 50 + sevCounts.medium * 30 + sevCounts.low * 20) * 100).toFixed(1) : 0}%</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><span className="severity-badge low">LOW</span></td>
-                                                        <td>20</td>
-                                                        <td>{sevCounts.low}</td>
-                                                        <td><strong>{sevCounts.low * 20}</strong></td>
-                                                        <td>{results.flags.length > 0 ? ((sevCounts.low * 20) / (sevCounts.high * 50 + sevCounts.medium * 30 + sevCounts.low * 20) * 100).toFixed(1) : 0}%</td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <button className="download-btn" onClick={() => generatePDF(results)}>Download PDF Report</button>
-                                <button className="analyze-btn" onClick={() => { setResults(null); setFiles({}); setSearch(''); setSevFilter(''); setActiveTab('flags'); }} style={{marginTop: 12}}>Analyze New Documents</button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        }
-
-        ReactDOM.render(<App />, document.getElementById('root'));
-    </script>
+// ═══════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════
+renderRulesTable();
+</script>
 </body>
 </html>
